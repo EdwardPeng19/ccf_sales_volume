@@ -127,7 +127,7 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
             pred = rf_model.predict(test_x)
         elif model_type == 'cat':
             ctb_params = {
-                'n_estimators': 10000,
+                'n_estimators': 1000,
                 'learning_rate': 0.02,
                 'random_seed': 4590,
                 'reg_lambda': 0.08,
@@ -145,7 +145,7 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
             }
 
             cat_model = cat.CatBoostRegressor(**ctb_params)
-            cat_model.fit(k_x_train, k_y_train, verbose=False)
+            cat_model.fit(k_x_train, k_y_train, verbose=False, use_best_model=True, eval_set=[(k_x_vali, k_y_vali)])
             k_pred = cat_model.predict(k_x_vali)
             pred = cat_model.predict(test_x)
         preds_list.append(pred)

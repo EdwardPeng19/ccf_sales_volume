@@ -43,23 +43,27 @@ def train_input():
     # with open(P_DATA + 'test.pk', 'wb') as test_f:
     #     pickle.dump(test, test_f)
 
+def cut_season(x):
+    x = int(x)
+    if x<=3:
+        return 1
+    if x<=6:
+        return 2
+    if x<=9:
+        return 3
+    if x>9:
+        return 4
 #统计特征
-def feature_count(sales_model, search, reply):
-    sales_model['season'] = sales_model['regMonth']%4
+def feature_count(data, sales_model, search, reply):
+    sales_model['season'] = sales_model.apply(lambda x: cut_season(x['regMonth']), axis=1)
     season_sales = sales_model.groupby('season')['salesVolume'].agg([np.mean, np.var]).add_prefix('season_sales_').reset_index()
+    province_sales = sales_model.groupby('province')['salesVolume'].agg([np.mean, np.var]).add_prefix('province_sales_').reset_index()
+    model_sales = sales_model.groupby('model')['salesVolume'].agg([np.mean, np.var]).add_prefix('model_sales_').reset_index()
+    bodyType_sales = sales_model.groupby('bodyType')['salesVolume'].agg([np.mean, np.var]).add_prefix('bodyType_sales_').reset_index()
 
-    #province_sales_model = sales_model[['province','salesVolume']].groupby('province').mean().add_prefix('mean_province_').reset_index()
-
-    province_sales_model = sales_model.groupby('province')['salesVolume'].agg([np.mean, np.var]).add_prefix('province_sales_').reset_index()
-
-
-    model_sales_model = sales_model[['model', 'salesVolume']].groupby('model').mean().add_prefix('mean_model_').reset_index()
-    bodyType_sales_model = sales_model[['bodyType', 'salesVolume']].groupby('bodyType').mean().add_prefix('mean_bodyType_').reset_index()
-    province_sales_model2 = sales_model[['province', 'regMonth', 'salesVolume']].groupby(['province', 'regMonth']).mean().add_prefix('mean_province_permonth_').reset_index()
-    model_sales_model2 = sales_model[['model', 'regMonth', 'salesVolume']].groupby(['model','regMonth']).mean().add_prefix('mean_model_permonth_').reset_index()
-    bodyType_sales_model2 = sales_model[['bodyType', 'regMonth', 'salesVolume']].groupby(['bodyType','regMonth']).mean().add_prefix('mean_bodyType_permonth_').reset_index()
-
-
+    province_sales2 = sales_model.groupby(['province', 'regMonth'])['salesVolume'].agg([np.mean, np.var]).add_prefix('province_sales_permonth_').reset_index()
+    model_sales2 = sales_model.groupby(['model','regMonth'])['salesVolume'].agg([np.mean, np.var]).add_prefix('model_sales_permonth_').reset_index()
+    bodyType_sales2 = sales_model.groupby(['bodyType','regMonth'])['salesVolume'].agg([np.mean, np.var]).add_prefix('bodyType_sales_permonth_').reset_index()
 
     province_search = search[['province', 'popularity']].groupby('province').mean().add_prefix('mean_province_').reset_index()
     model_search = search[['model', 'popularity']].groupby('model').mean().add_prefix('mean_model_').reset_index()
@@ -70,34 +74,6 @@ def feature_count(sales_model, search, reply):
     model_reply2 = reply[['model', 'carCommentVolum']].groupby('model').mean().add_prefix('mean_model_').reset_index()
     model_reply3 = reply[['model', 'regMonth','newsReplyVolum']].groupby(['model','regMonth']).mean().add_prefix('mean_model_permonth_').reset_index()
     model_reply4 = reply[['model', 'regMonth','carCommentVolum']].groupby(['model','regMonth']).mean().add_prefix('mean_model_permonth_').reset_index()
-
-    return province_sales_model,model_sales_model,bodyType_sales_model, province_search,model_search,model_reply1,model_reply2,\
-           province_sales_model2,model_sales_model2,bodyType_sales_model2, province_search2,model_search2,model_reply3,model_reply4,\
-           season_sales
-
-
-def window_rollth(x):
-    return list(x)[0]
-
-
-def feature_main(sales_path=None):
-    data = train_input()
-    #窗口平移 #'popularity', 'carCommentVolum', 'newsReplyVolum'
-    data['season'] = data['regMonth'] % 4
-    # 统计特征
-    train_sales = pd.read_csv(P_DATA + 'train_sales_data.csv', encoding='utf-8')
-    train_search = pd.read_csv(P_DATA + 'train_search_data.csv', encoding='utf-8')
-    train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
-    province_sales,model_sales,bodyType_sales, \
-    province_search,model_search,\
-    model_reply1,model_reply2, \
-    province_sales2, model_sales2, bodyType_sales2, \
-    province_search2, model_search2, \
-    model_reply3, model_reply4, season_sales \
-    = feature_count(train_sales, train_search, train_user_reply)
-
-    #   每个季度的销量
-
 
     data = data.merge(season_sales, how='left', on=['season'])
     data = data.merge(province_sales, how='left', on=['province'])
@@ -115,6 +91,24 @@ def feature_main(sales_path=None):
     data = data.merge(model_search2, how='left', on=['model', 'regMonth'])
     data = data.merge(model_reply3, how='left', on=['model', 'regMonth'])
     data = data.merge(model_reply4, how='left', on=['model', 'regMonth'])
+
+    return data
+
+
+def window_rollth(x):
+    return list(x)[0]
+
+
+def feature_main(sales_path=None):
+    data = train_input()
+    #窗口平移 #'popularity', 'carCommentVolum', 'newsReplyVolum'
+    data['season'] = data.apply(lambda x: cut_season(x['regMonth']), axis=1)
+    # 统计特征
+    train_sales = pd.read_csv(P_DATA + 'train_sales_data.csv', encoding='utf-8')
+    train_search = pd.read_csv(P_DATA + 'train_search_data.csv', encoding='utf-8')
+    train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
+
+    data = feature_count(data, train_sales, train_search, train_user_reply)
     print(data.columns)
 
     data['label'] = data['label'].fillna(0)
@@ -145,6 +139,11 @@ def feature_main(sales_path=None):
     for th in range(2, 14):
         data[f'sales_{th - 1}thMonth'] = data.rolling(th)["label"].apply(lambda x: list(x)[0], raw=False)  # 往前第th个月的销量
         data[f'popularity_{th - 1}thMonth'] = data.rolling(th)["popularity"].apply(lambda x: list(x)[0], raw=False)  # 往前第th个月的销量
+    s_df = data.groupby(['province', 'model', 'regYear', 'season'])['label'].agg([np.mean,np.var]).add_prefix('model_season_').reset_index()
+    for sea in [2, 3, 4, 5]:
+        s_df[f'sales_{sea - 1}thSeason_mean'] = s_df.rolling(sea)["model_season_mean"].apply(window_rollth, raw=False)  # 往前第th个季度的平均销量
+        s_df[f'sales_{sea - 1}thSeason_var'] = s_df.rolling(sea)["model_season_var"].apply(window_rollth, raw=False)  # 往前第th个季度的平均销量
+    data = data.merge(s_df, how='left', on=['province', 'model', 'regYear', 'season'])
 
     #对车型相关新闻文章的评论数量 carCommentVolum 和对车型的评价数量的回溯 newsReplyVolum
     print('m 特征')
@@ -158,6 +157,12 @@ def feature_main(sales_path=None):
         c_df = m_df[['regYear', 'regMonth', 'carCommentVolum']].groupby(['regYear', 'regMonth']).mean().add_prefix('allc_').reset_index()
         r_df = m_df[['regYear', 'regMonth', 'newsReplyVolum']].groupby(['regYear', 'regMonth']).mean().add_prefix('allr_').reset_index()
 
+        s_df = m_df.groupby(['regYear', 'season'])['label'].agg([np.mean,np.var]).add_prefix('model_allp_').reset_index()
+        for sea in [2,3,4,5]:
+            s_df[f'sales_allp_{sea-1}thSeason_mean'] = s_df.rolling(sea)["model_allp_mean"].apply(window_rollth, raw=False) # 往前第th个季度的平均销量
+            s_df[f'sales_allp_{sea - 1}thSeason_var'] = s_df.rolling(sea)["model_allp_var"].apply(window_rollth, raw=False)  # 往前第th个季度的平均销量
+
+
         for th in range(2,14):
             n_df[f'sales_model_{th-1}thMonth'] = n_df.rolling(th)["allp_label"].apply(window_rollth, raw=False) # 往前第th个月的销量
             p_df[f'popularity_model_{th - 1}thMonth'] = p_df.rolling(th)["allp_popularity"].apply(window_rollth, raw=False)  # 往前第th个月的销量
@@ -167,7 +172,7 @@ def feature_main(sales_path=None):
         m_df = m_df.merge(p_df, how='left', on=['regYear', 'regMonth'])
         m_df = m_df.merge(c_df, how='left', on=['regYear', 'regMonth'])
         m_df = m_df.merge(r_df, how='left', on=['regYear', 'regMonth'])
-
+        m_df = m_df.merge(s_df, how='left', on=['regYear', 'season'])
         redf = redf.append(m_df)
     data = redf
 
@@ -180,9 +185,6 @@ def feature_main(sales_path=None):
         m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
         n_df = m_df[['regYear', 'regMonth', 'label']].groupby(['regYear', 'regMonth']).sum().add_prefix('allm_').reset_index()
         p_df = m_df[['regYear', 'regMonth', 'popularity']].groupby(['regYear', 'regMonth']).sum().add_prefix('allm_').reset_index()
-        n_df['sales_pro_cumsum'] = n_df['allm_label'].cumsum() - n_df['allm_label']
-        p_df['popularity_pro_cumsum'] = p_df['allm_popularity'].cumsum() - p_df['allm_popularity']
-
         for th in range(2, 14):
             n_df[f'sales_pro_{th - 1}thMonth'] = n_df.rolling(th)["allm_label"].apply(window_rollth, raw=False)  # 往前第th个月的销量
             p_df[f'popularity_pro_{th - 1}thMonth'] = p_df.rolling(th)["allm_popularity"].apply(window_rollth,raw=False)  # 往前第th个月的搜索量
@@ -196,12 +198,10 @@ def feature_main(sales_path=None):
     redf = pd.DataFrame()
     for b in bodys:
         m_df = data[(data['bodyType'] == b)]
-        m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
+
         m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
         n_df = m_df[['regYear', 'regMonth', 'label']].groupby(['regYear', 'regMonth']).sum().add_prefix('allb_').reset_index()
         p_df = m_df[['regYear', 'regMonth', 'popularity']].groupby(['regYear', 'regMonth']).sum().add_prefix('allb_').reset_index()
-        n_df['sales_body_cumsum'] = n_df['allb_label'].cumsum() - n_df['allb_label']
-        p_df['popularity_body_cumsum'] = p_df['allb_popularity'].cumsum() - p_df['allb_popularity']
 
         for th in range(2, 14):
             n_df[f'sales_body_{th - 1}thMonth'] = n_df.rolling(th)["allb_label"].apply(window_rollth, raw=False)  # 往前第th个月的销量
@@ -210,6 +210,9 @@ def feature_main(sales_path=None):
         m_df = m_df.merge(p_df, how='left', on=['regYear', 'regMonth'])
         redf = redf.append(m_df)
     data = redf
+
+
+
 
     for sea in [1, 2, 3, 4]:
         data[f'sales_{sea}thQuarter_var'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].var(axis=1)
