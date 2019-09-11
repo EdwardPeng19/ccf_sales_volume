@@ -24,7 +24,6 @@ sales_thMonth = [f'sales_{th - 1}thMonth' for th in range(2, 14)]
 
 
 def get_month_features(data, month):
-    cat_features = []
     sales_thMonth = [f'sales_{th}thMonth' for th in [1,2,3,4,12]]
     sales_model_thMonth = [f'sales_model_{th}thMonth' for th in [1,2,3,4,12]]
     sales_pro_thMonth = [f'sales_pro_{th}thMonth' for th in [1,2,3,4,12]]
@@ -38,8 +37,9 @@ def get_month_features(data, month):
     reply_thMonth = [f'reply_{th}thMonth' for th in range(12, 13)]  # 效果不好
 
     sales_thQuarter = []
-    for sea in [1, 4]:
-        sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var'])
+    for sea in [1,4]:
+        sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var',
+                                ])
 
     # 差、比值特恒
     diff_features = []
@@ -51,16 +51,12 @@ def get_month_features(data, month):
                      'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
                      'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
                      'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
-    features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + popularity_thMonth + popularity_model_thMonth + comment_thMonth + reply_thMonth + \
-               sales_thQuarter + diff_features+time_features
+    features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
+               sales_thQuarter
     if month == 1:
-
         features = features
     elif month == 2:
-        season_features = []
-        for sea in [1, 2, 3, 4]:
-            season_features.extend([f'sales_allp_{sea}thSeason_mean', f'sales_allp_{sea}thSeason_var'])
-        features =  features + season_features
+        features =  features
     elif month == 3:
         sales_thMonth = [f'sales_{th}thMonth' for th in range(1,12)]
         sales_model_thMonth = [f'sales_model_{th}thMonth' for th in range(month,12)]
@@ -145,7 +141,7 @@ def get_month_features(data, month):
         print("输入月份不合法")
         features = []
     print(f'特征数量为{len(features)}')
-    return data, features, cat_features
+    return data, features
 
 
 def main(month, offline):
@@ -153,13 +149,7 @@ def main(month, offline):
     model_type = 'lgb'
     label = 'label'
     # carCommentVolum newsReplyVolum popularity
-    data, features, cat_features = get_month_features(data, month)
-    data['pb'] = data['province'] + data['bodyType']
-    data['pm'] = data['regMonth'].astype(str) + data['province']
-    data['bm'] = data['regMonth'].astype(str) + data['bodyType']
-    data['mm'] = data['regMonth'].astype(str) + data['model']
-
-
+    data, features = get_month_features(data, month)
     # 切分训练集、测试集
     train_m = data[(data['regYear'] == 2017) | ( (data['regYear'] == 2018) & (data['regMonth'] <= month-1) )]
     test_m = data[(data['regYear'] == 2018) & (data['regMonth'] == month)]
@@ -168,11 +158,9 @@ def main(month, offline):
         train_m = train_m[(train_m['regYear'] != 2017) | (train_m['regMonth'] < 12)]
 
     numerical_features = ['adcode', 'regYear', 'regMonth',
-
                           ] + features
     category_features1 = ['province', 'model', 'bodyType', 'mp_fea','season'
-
-                          ] + cat_features  # 需转换为数值类型
+                          ]  # 需转换为数值类型
     category_features2 = []
 
     pred, train_pred = reg_model(train_m, test_m, label, model_type, numerical_features, category_features1,category_features2, seed=2019)
@@ -218,28 +206,41 @@ def main(month, offline):
 if __name__ == "__main__":
     #分别运行4次 预测1月 2月 3月 4月
     test_DF = pd.DataFrame()
+    #预测第一个月
+    #feature_main()
+    label_df = main(1, False)
+    print(np.mean(label_df['forecastVolum']))
+    test_DF = test_DF.append(label_df)
+    test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
 
-    for month in [1,2,3,4]:
-        if month > 1:
-            feature_main(P_SUBMIT + f'ccf_car_label_lgb_{month-1}month.csv')
+    # 预测第二个月
+    feature_main(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
+    label_df = main(2, False)
+    print(np.mean(label_df['forecastVolum']))
+    test_DF = test_DF.append(label_df)
+    test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_2month.csv', index=False)
 
-        label_df = main(month, False)
-        print(np.mean(label_df['forecastVolum']))
-        test_DF = test_DF.append(label_df)
-        test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_{month}month.csv', index=False)
-        #break
+    #预测第三个月
+    feature_main(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
+    label_df = main(3, False)
+    print(np.mean(label_df['forecastVolum']))
+    test_DF = test_DF.append(label_df)
+    test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_3month.csv', index=False)
 
-
+    # 预测第四个月
+    feature_main(P_SUBMIT + f'ccf_car_label_lgb_3month.csv')
+    label_df = main(4, False)
+    print(np.mean(label_df['forecastVolum']))
+    test_DF = test_DF.append(label_df)
     test_DF.to_csv(P_SUBMIT + f'ccf_car_sales_lgb_full.csv', index=False)
 
 
+
+
 '''
-test_mae:175.5477272727273,mse:133461.34318181817,score:0.6952774807188455, train_mae:64.55110192837465,mse:17408.726308539946, score:0.7809721235017266
-test_mae:174.38939393939393,mse:131692.76363636364,score:0.6952541230879405, train_mae:64.77190082644628,mse:17612.929752066117, score:0.7808081775099426
-
-test_mae:164.00378787878788,mse:108151.79318181818,score:0.7055400072774646, train_mae:63.777134986225896,mse:16337.394214876032, score:0.7841735493165017
-test_mae:162.6621212121212,mse:106461.84090909091,score:0.7085025589044303, train_mae:63.685192837465564,mse:16284.076928374656, score:0.7844280734596695
-
-test_mae:159.37424242424242,mse:103593.4803030303,score:0.7160171118812839, train_mae:67.06618457300276,mse:16377.753650137742, score:0.7753710974938721
+test_mae:185.83409090909092,mse:145611.7553030303,score:0.6808523989600382, train_mae:66.99800275482093,mse:18982.71108815427, score:0.7725821409538414
+test_mae:183.65454545454546,mse:145163.44545454546,score:0.6848456123728662, train_mae:67.04724517906337,mse:19187.598898071625, score:0.7729141629121636
+test_mae:191.30530303030304,mse:156012.3143939394,score:0.6877802680196621, train_mae:68.63601928374656,mse:20682.567424242425, score:0.7697593573728629
+test_mae:189.2651515151515,mse:153034.5303030303,score:0.690085440369921, train_mae:67.95798898071625,mse:19814.765013774104, score:0.770959874606481
 
 '''
