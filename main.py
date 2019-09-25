@@ -25,8 +25,8 @@ sales_thMonth = [f'sales_{th - 1}thMonth' for th in range(2, 14)]
 
 def get_month_features(data, month):
     sales_thMonth = [f'sales_{th}thMonth' for th in [1,2,3,4,12]]
-    sales_model_thMonth = [f'sales_model_{th}thMonth' for th in [1,2,3,4,12]]
-    sales_pro_thMonth = [f'sales_pro_{th}thMonth' for th in [1,2,3,4,12]]
+    sales_model_thMonth = [f'sales_model_mean_{th}thMonth' for th in [1,2,3,4,12]]
+    sales_pro_thMonth = [f'sales_province_mean_{th}thMonth' for th in [1,2,3,4,12]]
     sales_body_thMonth = [f'sales_body_{th}thMonth' for th in list(range(1,month+4))+[12]]  # 效果不好
 
     popularity_thMonth = [f'popularity_{th}thMonth' for th in range(month, 13)]
@@ -42,15 +42,39 @@ def get_month_features(data, month):
                                 ])
 
     # 差、比值特恒
-    diff_features = []
-    time_features = []
-    for i in range(2, 4):
-        diff_features.append(f'sales_diff_{i}_{i - 1}')
-        time_features.append(f'sales_time_{i}_{i - 1}')
+    trend_features = []
+    for i in [11]:
+        j = i + 1
+        for fea in ['sales_', 'popularity_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            trend_features.append(fea + f'_diff_{i}_{j}')
+            trend_features.append(fea + f'_time_{i}_{j}')
+    # 二阶趋势特征
+    diff_features2 = []
+    time_features2 = []
+    for i in [10, 11]:
+        j = i + 1
+        k = i + 2
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            diff_features2.append(fea + f'_diff_{i}_{j}2')
+            time_features2.append(fea + f'_time_{i}_{j}2')
     year_features = [f'sales_Year_var', f'sales_Year_mean', f'sales_Year_min', f'sales_Year_max',
                      'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
                      'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
                      'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
+    window_features = []
+    for win_size in [3]:
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            window_features.append(fea + f'window1_var_{win_size}')
+            window_features.append(fea + f'window1_mean_{win_size}')
     features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
                sales_thQuarter
     if month == 1:
@@ -59,9 +83,9 @@ def get_month_features(data, month):
         features =  features
     elif month == 3:
         sales_thMonth = [f'sales_{th}thMonth' for th in range(1,12)]
-        sales_model_thMonth = [f'sales_model_{th}thMonth' for th in range(month,12)]
-        sales_pro_thMonth = [f'sales_pro_{th}thMonth' for th in range(1,12)]
-        sales_body_thMonth = [f'sales_body_{th}thMonth' for th in range(month,12)]  # 效果不好
+        sales_model_thMonth = [f'sales_model_mean_{th}thMonth' for th in range(month,12)]
+        sales_pro_thMonth = [f'sales_province_mean_{th}thMonth' for th in range(1,12)]
+        sales_body_thMonth = [f'sales_body_mean_{th}thMonth' for th in range(month,12)]  # 效果不好
 
         popularity_thMonth = [f'popularity_{th}thMonth' for th in range(month, 13)]
         popularity_model_thMonth = [f'popularity_model_{th}thMonth' for th in range(month, 13)]
@@ -87,32 +111,33 @@ def get_month_features(data, month):
                          'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
                          'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
                          'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
-        # 差、比值特恒
-        diff_features = []
-        time_features = []
-        for i in range(2, 4):
-            diff_features.append(f'sales_diff_{i}_{i - 1}')
-            diff_features.append(f'sales_model_diff_{i}_{i - 1}')
-            #diff_features.append(f'sales_pro_diff_{i}_{i - 1}')
-            #diff_features.append(f'sales_body_diff_{i}_{i - 1}')
-
-
-            time_features.append(f'sales_time_{i}_{i - 1}')
-            time_features.append(f'sales_model_time_{i}_{i - 1}')
-            #time_features.append(f'sales_pro_time_{i}_{i - 1}')
-            #time_features.append(f'sales_body_time_{i}_{i - 1}')
 
         season_features = []
         for sea in [1, 2, 3, 4]:
             season_features.extend([f'sales_allp_{sea}thSeason_mean', f'sales_allp_{sea}thSeason_var'])
+            # 差、比值特恒
+        diff_features = []
+        time_features = []
+        for i in [3,4, 5, 6, 7, 8, 9, 10, 11, 12]:
+            j = i + 1
+            for fea in ['sales_', 'popularity_',
+                        'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                        'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                        'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+                diff_features.append(fea + f'_diff_{i}_{j}')
+                time_features.append(fea + f'_time_{i}_{j}')
         features = sales_thMonth + sales_model_thMonth+sales_body_thMonth + comment_thMonth + reply_thMonth + year_features
 
         #features = features
     elif month == 4:
+        year_features = [f'sales_Year_var', f'sales_Year_mean', f'sales_Year_min', f'sales_Year_max',
+                         'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
+                         'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
+                         'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
         sales_thMonth = [f'sales_{th}thMonth' for th in range(1, 12)]
-        sales_model_thMonth = [f'sales_model_{th}thMonth' for th in range(month, 12)]
-        sales_pro_thMonth = [f'sales_pro_{th}thMonth' for th in range(1, 12)]
-        sales_body_thMonth = [f'sales_body_{th}thMonth' for th in range(month, 12)]  # 效果不好
+        sales_model_thMonth = [f'sales_model_mean_{th}thMonth' for th in range(month, 12)]
+        sales_pro_thMonth = [f'sales_province_mean_{th}thMonth' for th in range(1, 12)]
+        sales_body_thMonth = [f'sales_body_mean_{th}thMonth' for th in range(month, 12)]  # 效果不好
 
         popularity_thMonth = [f'popularity_{th}thMonth' for th in range(month, 13)]
         popularity_model_thMonth = [f'popularity_model_{th}thMonth' for th in range(month, 13)]
@@ -130,13 +155,31 @@ def get_month_features(data, month):
         # for hy in [1, 2]:
         #     tmp = [f'sales_{hy}thHalfyear_var', f'sales_{hy}thHalfyear_mean', f'sales_{hy}thHalfyear_min', f'sales_{hy}thHalfyear_max']
         #     sales_thQuarter.extend(tmp)
-        # 差、比值特恒
+        # 一阶趋势特征
         diff_features = []
         time_features = []
-        for i in range(2, 4):
-            diff_features.append(f'sales_diff_{i}_{i - 1}')
-            time_features.append(f'sales_time_{i}_{i - 1}')
-        features = sales_thMonth + sales_model_thMonth + sales_body_thMonth + comment_thMonth + reply_thMonth
+        for i in [4, 5, 6, 11, 12]:
+            j = i + 1
+            for fea in ['sales_', 'popularity_',
+                        'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                        'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                        'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+                diff_features.append(fea + f'_diff_{i}_{j}')
+                time_features.append(fea + f'_time_{i}_{j}')
+        # 二阶趋势特征
+        diff_features2 = []
+        time_features2 = []
+        for i in [ 10, 11]:
+            j = i + 1
+            k = i + 2
+            for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                        'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                        'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                        'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+                diff_features2.append(fea + f'_diff_{i}_{j}2' )
+                time_features2.append(fea + f'_time_{i}_{j}2')
+        #窗口特征
+        features = sales_thMonth + sales_model_thMonth + sales_body_thMonth + comment_thMonth + reply_thMonth+year_features + diff_features+time_features
     else:
         print("输入月份不合法")
         features = []
@@ -146,6 +189,7 @@ def get_month_features(data, month):
 
 def main(month, offline):
     data = pd.read_pickle(P_DATA + 'train.pk')
+    data['season'] = data['regMonth'] % 4
     model_type = 'lgb'
     label = 'label'
     # carCommentVolum newsReplyVolum popularity
@@ -207,7 +251,7 @@ if __name__ == "__main__":
     #分别运行4次 预测1月 2月 3月 4月
     test_DF = pd.DataFrame()
     #预测第一个月
-    #feature_main()
+    feature_main()
     label_df = main(1, False)
     print(np.mean(label_df['forecastVolum']))
     test_DF = test_DF.append(label_df)
@@ -224,6 +268,7 @@ if __name__ == "__main__":
     feature_main(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
     label_df = main(3, False)
     print(np.mean(label_df['forecastVolum']))
+
     test_DF = test_DF.append(label_df)
     test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_3month.csv', index=False)
 
@@ -231,16 +276,8 @@ if __name__ == "__main__":
     feature_main(P_SUBMIT + f'ccf_car_label_lgb_3month.csv')
     label_df = main(4, False)
     print(np.mean(label_df['forecastVolum']))
+
     test_DF = test_DF.append(label_df)
     test_DF.to_csv(P_SUBMIT + f'ccf_car_sales_lgb_full.csv', index=False)
 
-
-
-
-'''
-test_mae:185.83409090909092,mse:145611.7553030303,score:0.6808523989600382, train_mae:66.99800275482093,mse:18982.71108815427, score:0.7725821409538414
-test_mae:183.65454545454546,mse:145163.44545454546,score:0.6848456123728662, train_mae:67.04724517906337,mse:19187.598898071625, score:0.7729141629121636
-test_mae:191.30530303030304,mse:156012.3143939394,score:0.6877802680196621, train_mae:68.63601928374656,mse:20682.567424242425, score:0.7697593573728629
-test_mae:189.2651515151515,mse:153034.5303030303,score:0.690085440369921, train_mae:67.95798898071625,mse:19814.765013774104, score:0.770959874606481
-
-'''
+    feature_main(P_SUBMIT + f'ccf_car_sales_lgb_full.csv')

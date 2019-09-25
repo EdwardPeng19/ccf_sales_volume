@@ -64,7 +64,7 @@ def lgb_f1_score(y_hat, data):
 def multi_column_LabelEncoder(df,columns,rename=True):
     le = LabelEncoder()
     for column in columns:
-        print(column,"LabelEncoder......")
+        #print(column,"LabelEncoder......")
         le.fit(df[column])
         df[column+"_index"] = le.transform(df[column])
         if rename:
@@ -110,7 +110,7 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
             dtrain = lgb.Dataset(k_x_train, k_y_train)
             dvalid = lgb.Dataset(k_x_vali, k_y_vali, reference=dtrain)
             lgb_model = lgb.LGBMRegressor(**lgb_params)
-            lgb_model = lgb_model.fit(k_x_train, k_y_train, eval_set=[(k_x_train, k_y_train), (k_x_vali, k_y_vali)],
+            lgb_model = lgb_model.fit(k_x_train, k_y_train, eval_set=[(k_x_vali, k_y_vali)],
                                       early_stopping_rounds=200, verbose=False, eval_metric="mae")
             k_pred = lgb_model.predict(k_x_vali, num_iteration=lgb_model.best_iteration_)
             pred = lgb_model.predict(test_x, num_iteration=lgb_model.best_iteration_)
@@ -151,11 +151,11 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
         preds_list.append(pred)
         oof[vali_index] = k_pred
 
-    if model_type == 'lgb':
-        print(pd.DataFrame({
-            'column': features,
-            'importance': lgb_model.feature_importances_,
-        }).sort_values(by='importance'))
+    # if model_type == 'lgb':
+    #     print(pd.DataFrame({
+    #         'column': features,
+    #         'importance': lgb_model.feature_importances_,
+    #     }).sort_values(by='importance'))
 
     preds_columns = ['preds_{id}'.format(id=i) for i in range(n_fold)]
     preds_df = pd.DataFrame(data=preds_list)
@@ -165,6 +165,71 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
 
     return preds, oof
 
+
+def reg_model_v2(train, test, label_name, model_type, numerical_features, category_features1, category_features2, split_info, bset_iter):
+    train.reset_index(inplace=True, drop=True)
+    test.reset_index(inplace=True, drop=True)
+
+    combine = pd.concat([train, test], axis=0)
+    combine = multi_column_LabelEncoder(combine, category_features1, rename=True)
+    #combine[category_features1 + category_features2] = combine[category_features1 + category_features2].astype(
+    #    'category')
+    train = combine[:train.shape[0]]
+    test = combine[train.shape[0]:]
+
+    features = category_features1 + category_features2 + numerical_features
+
+    split_name = split_info[0]
+    train_ind = split_info[1]
+    valid_ind = split_info[2]
+
+    train_x = train[(train[split_name]>=train_ind[0]) & (train[split_name]<=train_ind[1])][features]
+    train_y = train[(train[split_name]>=train_ind[0]) & (train[split_name]<=train_ind[1])][label_name]
+    valid_x = train[(train[split_name] >= valid_ind[0]) & (train[split_name] <= valid_ind[1])][features]
+    valid_y = train[(train[split_name] >= valid_ind[0]) & (train[split_name] <= valid_ind[1])][label_name]
+    test_x = test[features]
+
+    print(train_x.shape, valid_x.shape)
+    model = get_model_type(train_x, train_y, valid_x, valid_y, model_type, category_features1+category_features2)
+    valid_pre = model.predict(valid_x)
+
+    valid_df = pd.DataFrame()
+    valid_df['y'] = valid_y
+    valid_df['y_hat'] = valid_pre
+    valid_df['model'] = valid_x['model']
+    valid_df['model_adcode_ym'] = train[(train[split_name] >= valid_ind[0]) & (train[split_name] <= valid_ind[1])]['model_adcode_ym']
+    print('model.best_iteration_:',model.best_iteration_)
+    model.n_estimators = model.best_iteration_ + 100
+    #model.n_estimators = bset_iter + 100
+    model.fit(train[features], train[label_name], categorical_feature=category_features1+category_features2)
+
+    test_pre = model.predict(test_x)
+
+    return model, valid_df, test_pre
+
+
+def get_model_type(train_x,train_y,valid_x,valid_y,m_type='lgb', cat_features=None):
+    if m_type == 'lgb':
+        model = lgb.LGBMRegressor(
+                                num_leaves=2**5-1, reg_alpha=0.25, reg_lambda=0.25, objective='mse',
+                                max_depth=-1, learning_rate=0.05, min_child_samples=5, random_state=2019,
+                                n_estimators=2000, subsample=0.9, colsample_bytree=0.7,
+                                )
+        model.fit(train_x, train_y,
+              eval_set=[(train_x, train_y),(valid_x, valid_y)],
+              early_stopping_rounds=100, verbose=False, categorical_feature=cat_features)
+    elif m_type == 'xgb':
+        model = xgb.XGBRegressor(
+                                max_depth=5 , learning_rate=0.05, n_estimators=2000,
+                                objective='reg:gamma', tree_method = 'hist',subsample=0.9,
+                                colsample_bytree=0.7, min_child_samples=5,eval_metric = 'rmse'
+                                )
+        model.fit(train_x, train_y,
+              eval_set=[(train_x, train_y),(valid_x, valid_y)],
+              early_stopping_rounds=100, verbose=100)
+    else:
+        model = 1
+    return model
 
 def class_model(train, test, features_map, model_type='lgb', class_num=2, cv=True):
     label = features_map['label']

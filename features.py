@@ -22,13 +22,6 @@ def train_input():
     train_search = pd.read_csv(P_DATA + 'train_search_data.csv', encoding='utf-8')
     train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
     evaluation_public = pd.read_csv(P_DATA + 'evaluation_public.csv', encoding='utf-8')
-    model_bodyType = train_sales_model.groupby(['model','bodyType']).size().reset_index(name='count')
-    del model_bodyType['count']
-    evaluation_public = evaluation_public.merge(model_bodyType, how='left', on=['model'])
-
-    #data_describe(train_search, ['province', 'adcode', 'model', 'regYear', 'regMonth'])
-    #data_describe(train_sales_model, ['province', 'adcode', 'model', 'bodyType', 'regYear', 'regMonth'])
-    #data_describe(train_user_reply, ['model', 'regYear', 'regMonth'])
 
     data = pd.concat([train_sales_model, evaluation_public], ignore_index=True)
     data = data.merge(train_search, how='left', on=['province', 'adcode', 'model', 'regYear', 'regMonth'])
@@ -37,11 +30,8 @@ def train_input():
     data['label'] = data['salesVolume']
     del data['salesVolume'], data['forecastVolum']
     #print(data.info())
+    data['bodyType'] = data['model'].map(train_sales_model.drop_duplicates('model').set_index('model')['bodyType'])
     return data
-    # with open(P_DATA + 'train_pre.pk', 'wb') as train_f:
-    #     pickle.dump(data, train_f)
-    # with open(P_DATA + 'test.pk', 'wb') as test_f:
-    #     pickle.dump(test, test_f)
 
 def cut_season(x):
     x = int(x)
@@ -53,330 +43,193 @@ def cut_season(x):
         return 3
     if x>9:
         return 4
-#统计特征
-def feature_count(data, sales_model, search, reply):
-    sales_model['season'] = sales_model.apply(lambda x: cut_season(x['regMonth']), axis=1)
-    season_sales = sales_model.groupby('season')['salesVolume'].agg([np.mean, np.var]).add_prefix('season_sales_').reset_index()
-    province_sales = sales_model.groupby('province')['salesVolume'].agg([np.mean, np.var]).add_prefix('province_sales_').reset_index()
-    model_sales = sales_model.groupby('model')['salesVolume'].agg([np.mean, np.var]).add_prefix('model_sales_').reset_index()
-    bodyType_sales = sales_model.groupby('bodyType')['salesVolume'].agg([np.mean, np.var]).add_prefix('bodyType_sales_').reset_index()
-
-    province_sales2 = sales_model.groupby(['province', 'regMonth'])['salesVolume'].agg([np.mean, np.var]).add_prefix('province_sales_permonth_').reset_index()
-    model_sales2 = sales_model.groupby(['model','regMonth'])['salesVolume'].agg([np.mean, np.var]).add_prefix('model_sales_permonth_').reset_index()
-    bodyType_sales2 = sales_model.groupby(['bodyType','regMonth'])['salesVolume'].agg([np.mean, np.var]).add_prefix('bodyType_sales_permonth_').reset_index()
-
-    province_search = search[['province', 'popularity']].groupby('province').mean().add_prefix('mean_province_').reset_index()
-    model_search = search[['model', 'popularity']].groupby('model').mean().add_prefix('mean_model_').reset_index()
-    province_search2 = search[['province', 'regMonth', 'popularity']].groupby(['province','regMonth']).mean().add_prefix('mean_province_permonth_').reset_index()
-    model_search2 = search[['model', 'regMonth', 'popularity']].groupby(['model','regMonth']).mean().add_prefix('mean_model_permonth_').reset_index()
-
-    model_reply1 = reply[['model', 'newsReplyVolum']].groupby('model').mean().add_prefix('mean_model_').reset_index()
-    model_reply2 = reply[['model', 'carCommentVolum']].groupby('model').mean().add_prefix('mean_model_').reset_index()
-    model_reply3 = reply[['model', 'regMonth','newsReplyVolum']].groupby(['model','regMonth']).mean().add_prefix('mean_model_permonth_').reset_index()
-    model_reply4 = reply[['model', 'regMonth','carCommentVolum']].groupby(['model','regMonth']).mean().add_prefix('mean_model_permonth_').reset_index()
-
-    data = data.merge(season_sales, how='left', on=['season'])
-    data = data.merge(province_sales, how='left', on=['province'])
-    data = data.merge(model_sales, how='left', on=['model'])
-    data = data.merge(bodyType_sales, how='left', on=['bodyType'])
-    data = data.merge(province_search, how='left', on=['province'])
-    data = data.merge(model_search, how='left', on=['model'])
-    data = data.merge(model_reply1, how='left', on=['model'])
-    data = data.merge(model_reply2, how='left', on=['model'])
-
-    data = data.merge(province_sales2, how='left', on=['province', 'regMonth'])
-    data = data.merge(model_sales2, how='left', on=['model', 'regMonth'])
-    data = data.merge(bodyType_sales2, how='left', on=['bodyType', 'regMonth'])
-    data = data.merge(province_search2, how='left', on=['province', 'regMonth'])
-    data = data.merge(model_search2, how='left', on=['model', 'regMonth'])
-    data = data.merge(model_reply3, how='left', on=['model', 'regMonth'])
-    data = data.merge(model_reply4, how='left', on=['model', 'regMonth'])
-
-    return data
-
 
 def window_rollth(x):
     return list(x)[0]
 
-
-def feature_main(sales_path=None):
+def feature_main(sales_path=None, offline=False):
+    t = time.time()
     data = train_input()
     #窗口平移 #'popularity', 'carCommentVolum', 'newsReplyVolum'
     data['season'] = data.apply(lambda x: cut_season(x['regMonth']), axis=1)
-    # 统计特征
-    train_sales = pd.read_csv(P_DATA + 'train_sales_data.csv', encoding='utf-8')
-    train_search = pd.read_csv(P_DATA + 'train_search_data.csv', encoding='utf-8')
-    train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
-
-    data = feature_count(data, train_sales, train_search, train_user_reply)
-    print(data.columns)
+    data['mp_fea'] = data['adcode'].astype(str) + data['model']
 
     data['label'] = data['label'].fillna(0)
     data['popularity'] = data['popularity'].fillna(0)
     data['carCommentVolum'] = data['carCommentVolum'].fillna(0)
     data['newsReplyVolum'] = data['newsReplyVolum'].fillna(0)
+
+    for i in ['bodyType', 'model']:
+        data[i] = data[i].map(dict(zip(data[i].unique(), range(data[i].nunique())))) # model:60 body:4
+
+    data['ym'] = (data['regYear'] - 2016) * 12 + data['regMonth']  # 1-24 25 26 27 28
+    data['model_adcode'] = data['adcode'] + data['model']  # 56：省份， 12：车型
+    data['model_ym'] = data['model'] * 100 + data['ym']  # 34：车型， 12：年月
+    data['adcode_ym'] = data['adcode'] + data['ym']  # 34：省份， 12：年月
+    data['body_ym'] = data['bodyType'] * 100 + data['ym']  # 34：车身， 12：年月
+    data['model_adcode_ym'] = data['model_adcode'] * 100 + data['ym']  # 78:省份 34：车型 ， 12：年月
+
     if sales_path:
-        sales_data = pd.read_csv(sales_path).rename(columns={'forecastVolum':'salesNum'})
-        data = data.merge(sales_data, how='left', on='id')
-        data['label'] = data.apply(lambda x: x['salesNum'] if x['salesNum']>0 else x['label'] , axis=1)
+        if offline:
+            sales_data = pd.read_csv(sales_path)[['y_hat','model_adcode_ym']]
+            data = data.merge(sales_data, how='left', on='model_adcode_ym')
+            #print(data[data['ym']==21][['model_adcode_ym','label','y_hat']])
+            data['label'] = data.apply(lambda x: x['y_hat'] if x['y_hat']>0 else x['label'] , axis=1)
+            #print(data[data['ym'] == 21][['model_adcode_ym', 'label', 'y_hat']])
+        else:
+            sales_data = pd.read_csv(sales_path).rename(columns={'forecastVolum':'salesNum'})
+            data = data.merge(sales_data, how='left', on='id')
+            data['label'] = data.apply(lambda x: x['salesNum'] if x['salesNum']>0 else x['label'] , axis=1)
+            #data['label'] = data['label'].map(sales_data['forecastVolum'])
 
+    # with open(P_DATA + 'train_test.pk', 'wb') as train_f:
+    #     pickle.dump(data, train_f)
+    # print(f'feature process use time {time.time()-t}')
+    # sys.exit(-1)
+    #print('shift 特征')
+    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13]:
+        # 对销量和搜索量
+        data['model_adcode_ym_{0}'.format(i)] = data['model_adcode_ym'] + i
+        data_last = data[~data.label.isnull()].set_index('model_adcode_ym_{0}'.format(i))
+        data[f'sales_{i}thMonth'] = data['model_adcode_ym'].map(data_last['label'])
+        data[f'popularity_{i}thMonth'] = data['model_adcode_ym'].map(data_last['popularity'])
+        #按省分组统计
+        data['model_ym_{0}'.format(i)] = data['model_ym'] + i
+        data_last = data[~data.label.isnull()].set_index('model_ym_{0}'.format(i))
+        data_last1 = data_last[~data_last.index.duplicated()]
+        data[f'comment_{i}thMonth'] = data['model_ym'].map(data_last1['carCommentVolum']) #评论和回复
+        data[f'reply_{i}thMonth'] = data['model_ym'].map(data_last1['newsReplyVolum']) #评论和回复
 
-    data['mp_fea'] = data['adcode'].astype(str) + data['model']
-    data['id_index'] = range(len(data))
-    redf = pd.DataFrame()
-    #models = data['model'].value_counts().index
-    #models_df = pd.DataFrame(list(models),columns=['model']).to_csv('models.csv', index=False)
-    models = pd.read_csv('models.csv')['model']
-    #provinces = data['province'].value_counts().index
-    #provinces_df = pd.DataFrame(list(provinces), columns=['province']).to_csv('provinces.csv', index=False)
-    provinces = pd.read_csv('provinces.csv')['province']
-    #bodys = data['bodyType'].value_counts().index
-    #bodys_df = pd.DataFrame(list(bodys), columns=['body']).to_csv('bodys.csv', index=False)
-    bodys = pd.read_csv('bodys.csv')['body']
+        province_sta = data_last.groupby(data_last.index)
 
-    print('m p 特征')
-    data.sort_values(by=['province', 'model', 'regYear', 'regMonth'], ascending=[True, True, True, True], inplace=True)
-    for th in range(2, 14):
-        data[f'sales_{th - 1}thMonth'] = data.rolling(th)["label"].apply(lambda x: list(x)[0], raw=False)  # 往前第th个月的销量
-        data[f'popularity_{th - 1}thMonth'] = data.rolling(th)["popularity"].apply(lambda x: list(x)[0], raw=False)  # 往前第th个月的销量
-    s_df = data.groupby(['province', 'model', 'regYear', 'season'])['label'].agg([np.mean,np.var]).add_prefix('model_season_').reset_index()
-    for sea in [2, 3, 4, 5]:
-        s_df[f'sales_{sea - 1}thSeason_mean'] = s_df.rolling(sea)["model_season_mean"].apply(window_rollth, raw=False)  # 往前第th个季度的平均销量
-        s_df[f'sales_{sea - 1}thSeason_var'] = s_df.rolling(sea)["model_season_var"].apply(window_rollth, raw=False)  # 往前第th个季度的平均销量
-    data = data.merge(s_df, how='left', on=['province', 'model', 'regYear', 'season'])
+        data[f'sales_province_mean_{i}thMonth'] = data['model_ym'].map(province_sta.sum()['label'])
+        data[f'sales_province_var_{i}thMonth'] = data['model_ym'].map(province_sta.var()['label'])
+        data[f'popularity_province_mean_{i}thMonth'] = data['model_ym'].map(province_sta.sum()['popularity'])
+        data[f'popularity_province_var_{i}thMonth'] = data['model_ym'].map(province_sta.var()['popularity'])
 
-    #对车型相关新闻文章的评论数量 carCommentVolum 和对车型的评价数量的回溯 newsReplyVolum
-    print('m 特征')
-    redf = pd.DataFrame()
-    for m in models:
-        m_df = data[(data['model'] == m)]
-        m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
-        n_df = m_df[['regYear', 'regMonth', 'label']].groupby(['regYear', 'regMonth']).sum().add_prefix('allp_').reset_index()
-        p_df = m_df[['regYear', 'regMonth', 'popularity']].groupby(['regYear', 'regMonth']).sum().add_prefix('allp_').reset_index()
+        #按车型分组统计
+        data['adcode_ym_{0}'.format(i)] = data['adcode_ym'] + i
+        data_last = data[~data.label.isnull()].set_index('adcode_ym_{0}'.format(i))
+        model_sta = data_last.groupby(data_last.index)
+        data[f'sales_model_mean_{i}thMonth'] = data['adcode_ym'].map(model_sta.sum()['label'])
+        data[f'sales_model_var_{i}thMonth'] = data['adcode_ym'].map(model_sta.var()['label'])
+        data[f'popularity_model_mean_{i}thMonth'] = data['adcode_ym'].map(model_sta.sum()['popularity'])
+        data[f'popularity_model_var_{i}thMonth'] = data['adcode_ym'].map(model_sta.var()['popularity'])
 
-        c_df = m_df[['regYear', 'regMonth', 'carCommentVolum']].groupby(['regYear', 'regMonth']).mean().add_prefix('allc_').reset_index()
-        r_df = m_df[['regYear', 'regMonth', 'newsReplyVolum']].groupby(['regYear', 'regMonth']).mean().add_prefix('allr_').reset_index()
+        #按车身分组统计
+        data['body_ym_{0}'.format(i)] = data['body_ym'] + i
+        data_last = data[~data.label.isnull()].set_index('body_ym_{0}'.format(i))
+        body_sta = data_last.groupby(data_last.index)
+        data[f'sales_body_mean_{i}thMonth'] = data['body_ym'].map(body_sta.sum()['label'])
+        data[f'sales_body_var_{i}thMonth'] = data['body_ym'].map(body_sta.var()['label'])
+        data[f'popularity_body_mean_{i}thMonth'] = data['body_ym'].map(body_sta.sum()['popularity'])
+        data[f'popularity_body_var_{i}thMonth'] = data['body_ym'].map(body_sta.var()['popularity'])
 
-        s_df = m_df.groupby(['regYear', 'season'])['label'].agg([np.mean,np.var]).add_prefix('model_allp_').reset_index()
-        for sea in [2,3,4,5]:
-            s_df[f'sales_allp_{sea-1}thSeason_mean'] = s_df.rolling(sea)["model_allp_mean"].apply(window_rollth, raw=False) # 往前第th个季度的平均销量
-            s_df[f'sales_allp_{sea - 1}thSeason_var'] = s_df.rolling(sea)["model_allp_var"].apply(window_rollth, raw=False)  # 往前第th个季度的平均销量
+        del data['model_adcode_ym_{0}'.format(i)]
+        del data['model_ym_{0}'.format(i)]
+        del data['adcode_ym_{0}'.format(i)]
+        del data['body_ym_{0}'.format(i)]
 
-
-        for th in range(2,14):
-            n_df[f'sales_model_{th-1}thMonth'] = n_df.rolling(th)["allp_label"].apply(window_rollth, raw=False) # 往前第th个月的销量
-            p_df[f'popularity_model_{th - 1}thMonth'] = p_df.rolling(th)["allp_popularity"].apply(window_rollth, raw=False)  # 往前第th个月的销量
-            c_df[f'comment_{th - 1}thMonth'] = c_df.rolling(th)["allc_carCommentVolum"].apply(window_rollth, raw=False)  # 往前第th个月的评论特征
-            r_df[f'reply_{th - 1}thMonth'] = r_df.rolling(th)["allr_newsReplyVolum"].apply(window_rollth, raw=False)  # 往前第th个月的评论特征
-        m_df = m_df.merge(n_df, how='left', on=['regYear', 'regMonth'])
-        m_df = m_df.merge(p_df, how='left', on=['regYear', 'regMonth'])
-        m_df = m_df.merge(c_df, how='left', on=['regYear', 'regMonth'])
-        m_df = m_df.merge(r_df, how='left', on=['regYear', 'regMonth'])
-        m_df = m_df.merge(s_df, how='left', on=['regYear', 'season'])
-        redf = redf.append(m_df)
-    data = redf
-
-    #以省分组
-    print('p 特征')
-    redf = pd.DataFrame()
-    for p in provinces:
-        m_df = data[(data['province'] == p)]
-        m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
-        m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
-        n_df = m_df[['regYear', 'regMonth', 'label']].groupby(['regYear', 'regMonth']).sum().add_prefix('allm_').reset_index()
-        p_df = m_df[['regYear', 'regMonth', 'popularity']].groupby(['regYear', 'regMonth']).sum().add_prefix('allm_').reset_index()
-        for th in range(2, 14):
-            n_df[f'sales_pro_{th - 1}thMonth'] = n_df.rolling(th)["allm_label"].apply(window_rollth, raw=False)  # 往前第th个月的销量
-            p_df[f'popularity_pro_{th - 1}thMonth'] = p_df.rolling(th)["allm_popularity"].apply(window_rollth,raw=False)  # 往前第th个月的搜索量
-        m_df = m_df.merge(n_df, how='left', on=['regYear', 'regMonth'])
-        m_df = m_df.merge(p_df, how='left', on=['regYear', 'regMonth'])
-        redf = redf.append(m_df)
-    data = redf
-
-    #以车型分组
-    print('b 特征')
-    redf = pd.DataFrame()
-    for b in bodys:
-        m_df = data[(data['bodyType'] == b)]
-
-        m_df.sort_values(by=['regYear', 'regMonth'], ascending=[True, True], inplace=True)
-        n_df = m_df[['regYear', 'regMonth', 'label']].groupby(['regYear', 'regMonth']).sum().add_prefix('allb_').reset_index()
-        p_df = m_df[['regYear', 'regMonth', 'popularity']].groupby(['regYear', 'regMonth']).sum().add_prefix('allb_').reset_index()
-
-        for th in range(2, 14):
-            n_df[f'sales_body_{th - 1}thMonth'] = n_df.rolling(th)["allb_label"].apply(window_rollth, raw=False)  # 往前第th个月的销量
-            p_df[f'popularity_body_{th - 1}thMonth'] = p_df.rolling(th)["allb_popularity"].apply(window_rollth,raw=False)  # 往前第th个月的搜索量
-        m_df = m_df.merge(n_df, how='left', on=['regYear', 'regMonth'])
-        m_df = m_df.merge(p_df, how='left', on=['regYear', 'regMonth'])
-        redf = redf.append(m_df)
-    data = redf
-
-
-
-
+    # print(np.mean(data[(data['ym'] > 12) & (data['ym'] < 25)][f'sales_province_mean_12thMonth']))
+    # print(np.mean(data[(data['ym'] > 12) & (data['ym'] < 25)][f'sales_model_mean_12thMonth']))
+    # sys.exit(-1)
     for sea in [1, 2, 3, 4]:
         data[f'sales_{sea}thQuarter_var'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].var(axis=1)
         data[f'sales_{sea}thQuarter_std'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].std(axis=1)
         data[f'sales_{sea}thQuarter_mean'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].mean(axis=1)
         data[f'sales_{sea}thQuarter_min'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].min(axis=1)
         data[f'sales_{sea}thQuarter_max'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'sales_model_{sea}thQuarter_var'] = data[[f'sales_model_{sea * 3 - 2}thMonth', f'sales_model_{sea * 3 - 1}thMonth', f'sales_model_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'sales_model_{sea}thQuarter_mean'] = data[[f'sales_model_{sea * 3 - 2}thMonth', f'sales_model_{sea * 3 - 1}thMonth', f'sales_model_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'sales_model_{sea}thQuarter_min'] = data[[f'sales_model_{sea * 3 - 2}thMonth', f'sales_model_{sea * 3 - 1}thMonth', f'sales_model_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'sales_model_{sea}thQuarter_max'] = data[[f'sales_model_{sea * 3 - 2}thMonth', f'sales_model_{sea * 3 - 1}thMonth', f'sales_model_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'sales_pro_{sea}thQuarter_var'] = data[[f'sales_pro_{sea * 3 - 2}thMonth', f'sales_pro_{sea * 3 - 1}thMonth', f'sales_pro_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'sales_pro_{sea}thQuarter_mean'] = data[[f'sales_pro_{sea * 3 - 2}thMonth', f'sales_pro_{sea * 3 - 1}thMonth', f'sales_pro_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'sales_pro_{sea}thQuarter_min'] = data[[f'sales_pro_{sea * 3 - 2}thMonth', f'sales_pro_{sea * 3 - 1}thMonth', f'sales_pro_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'sales_pro_{sea}thQuarter_max'] = data[[f'sales_pro_{sea * 3 - 2}thMonth', f'sales_pro_{sea * 3 - 1}thMonth', f'sales_pro_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'sales_body_{sea}thQuarter_var'] = data[[f'sales_body_{sea * 3 - 2}thMonth', f'sales_body_{sea * 3 - 1}thMonth', f'sales_body_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'sales_body_{sea}thQuarter_mean'] = data[[f'sales_body_{sea * 3 - 2}thMonth', f'sales_body_{sea * 3 - 1}thMonth', f'sales_body_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'sales_body_{sea}thQuarter_min'] = data[[f'sales_body_{sea * 3 - 2}thMonth', f'sales_body_{sea * 3 - 1}thMonth', f'sales_body_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'sales_body_{sea}thQuarter_max'] = data[[f'sales_body_{sea * 3 - 2}thMonth', f'sales_body_{sea * 3 - 1}thMonth', f'sales_body_{sea * 3 - 0}thMonth']].max(axis=1)
-
-        data[f'popularity_{sea}thQuarter_var'] = data[[f'popularity_{sea * 3 - 2}thMonth', f'popularity_{sea * 3 - 1}thMonth', f'popularity_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'popularity_{sea}thQuarter_mean'] = data[[f'popularity_{sea * 3 - 2}thMonth', f'popularity_{sea * 3 - 1}thMonth', f'popularity_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'popularity_{sea}thQuarter_min'] = data[[f'popularity_{sea * 3 - 2}thMonth', f'popularity_{sea * 3 - 1}thMonth', f'popularity_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'popularity_{sea}thQuarter_max'] = data[[f'popularity_{sea * 3 - 2}thMonth', f'popularity_{sea * 3 - 1}thMonth', f'popularity_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'popularity_model_{sea}thQuarter_var'] = data[[f'popularity_model_{sea * 3 - 2}thMonth', f'popularity_model_{sea * 3 - 1}thMonth', f'popularity_model_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'popularity_model_{sea}thQuarter_mean'] = data[[f'popularity_model_{sea * 3 - 2}thMonth', f'popularity_model_{sea * 3 - 1}thMonth', f'popularity_model_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'popularity_model_{sea}thQuarter_min'] = data[[f'popularity_model_{sea * 3 - 2}thMonth', f'popularity_model_{sea * 3 - 1}thMonth', f'popularity_model_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'popularity_model_{sea}thQuarter_max'] = data[[f'popularity_model_{sea * 3 - 2}thMonth', f'popularity_model_{sea * 3 - 1}thMonth', f'popularity_model_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'popularity_pro_{sea}thQuarter_var'] = data[[f'popularity_pro_{sea * 3 - 2}thMonth', f'popularity_pro_{sea * 3 - 1}thMonth', f'popularity_pro_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'popularity_pro_{sea}thQuarter_mean'] = data[[f'popularity_pro_{sea * 3 - 2}thMonth', f'popularity_pro_{sea * 3 - 1}thMonth', f'popularity_pro_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'popularity_pro_{sea}thQuarter_min'] = data[[f'popularity_pro_{sea * 3 - 2}thMonth', f'popularity_pro_{sea * 3 - 1}thMonth', f'popularity_pro_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'popularity_pro_{sea}thQuarter_max'] = data[[f'popularity_pro_{sea * 3 - 2}thMonth', f'popularity_pro_{sea * 3 - 1}thMonth', f'popularity_pro_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'popularity_body_{sea}thQuarter_var'] = data[[f'popularity_body_{sea * 3 - 2}thMonth', f'popularity_body_{sea * 3 - 1}thMonth', f'popularity_body_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'popularity_body_{sea}thQuarter_mean'] = data[[f'popularity_body_{sea * 3 - 2}thMonth', f'popularity_body_{sea * 3 - 1}thMonth', f'popularity_body_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'popularity_body_{sea}thQuarter_min'] = data[[f'popularity_body_{sea * 3 - 2}thMonth', f'popularity_body_{sea * 3 - 1}thMonth', f'popularity_body_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'popularity_body_{sea}thQuarter_max'] = data[[f'popularity_body_{sea * 3 - 2}thMonth', f'popularity_body_{sea * 3 - 1}thMonth', f'popularity_body_{sea * 3 - 0}thMonth']].max(axis=1)
-
-        data[f'comment_{sea}thQuarter_var'] = data[[f'comment_{sea * 3 - 2}thMonth', f'comment_{sea * 3 - 1}thMonth', f'comment_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'comment_{sea}thQuarter_mean'] = data[[f'comment_{sea * 3 - 2}thMonth', f'comment_{sea * 3 - 1}thMonth', f'comment_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'comment_{sea}thQuarter_min'] = data[[f'comment_{sea * 3 - 2}thMonth', f'comment_{sea * 3 - 1}thMonth', f'comment_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'comment_{sea}thQuarter_max'] = data[[f'comment_{sea * 3 - 2}thMonth', f'comment_{sea * 3 - 1}thMonth', f'comment_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'reply_{sea}thQuarter_var'] = data[[f'reply_{sea * 3 - 2}thMonth', f'reply_{sea * 3 - 1}thMonth', f'reply_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'reply_{sea}thQuarter_mean'] = data[[f'reply_{sea * 3 - 2}thMonth', f'reply_{sea * 3 - 1}thMonth', f'reply_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'reply_{sea}thQuarter_min'] = data[[f'reply_{sea * 3 - 2}thMonth', f'reply_{sea * 3 - 1}thMonth', f'reply_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'reply_{sea}thQuarter_max'] = data[[f'reply_{sea * 3 - 2}thMonth', f'reply_{sea * 3 - 1}thMonth', f'reply_{sea * 3 - 0}thMonth']].max(axis=1)
-    for hy in [1, 2]:
-        data[f'sales_{hy}thHalfyear_var'] = data[[f'sales_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'sales_{hy}thHalfyear_mean'] = data[[f'sales_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'sales_{hy}thHalfyear_min'] = data[[f'sales_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'sales_{hy}thHalfyear_max'] = data[[f'sales_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'sales_model_{hy}thHalfyear_var'] = data[[f'sales_model_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'sales_model_{hy}thHalfyear_mean'] = data[[f'sales_model_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'sales_model_{hy}thHalfyear_min'] = data[[f'sales_model_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'sales_model_{hy}thHalfyear_max'] = data[[f'sales_model_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'sales_pro_{hy}thHalfyear_var'] = data[[f'sales_pro_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'sales_pro_{hy}thHalfyear_mean'] = data[[f'sales_pro_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'sales_pro_{hy}thHalfyear_min'] = data[[f'sales_pro_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'sales_pro_{hy}thHalfyear_max'] = data[[f'sales_pro_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'sales_body_{hy}thHalfyear_var'] = data[[f'sales_body_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'sales_body_{hy}thHalfyear_mean'] = data[[f'sales_body_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'sales_body_{hy}thHalfyear_min'] = data[[f'sales_body_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'sales_body_{hy}thHalfyear_max'] = data[[f'sales_body_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-
-        data[f'popularity_{hy}thHalfyear_var'] = data[[f'popularity_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'popularity_{hy}thHalfyear_mean'] = data[[f'popularity_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'popularity_{hy}thHalfyear_min'] = data[[f'popularity_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'popularity_{hy}thHalfyear_max'] = data[[f'popularity_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'popularity_model_{hy}thHalfyear_var'] = data[[f'popularity_model_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'popularity_model_{hy}thHalfyear_mean'] = data[[f'popularity_model_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'popularity_model_{hy}thHalfyear_min'] = data[[f'popularity_model_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'popularity_model_{hy}thHalfyear_max'] = data[[f'popularity_model_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'popularity_pro_{hy}thHalfyear_var'] = data[[f'popularity_pro_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'popularity_pro_{hy}thHalfyear_mean'] = data[[f'popularity_pro_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'popularity_pro_{hy}thHalfyear_min'] = data[[f'popularity_pro_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'popularity_pro_{hy}thHalfyear_max'] = data[[f'popularity_pro_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'popularity_body_{hy}thHalfyear_var'] = data[[f'popularity_body_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'popularity_body_{hy}thHalfyear_mean'] = data[[f'popularity_body_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'popularity_body_{hy}thHalfyear_min'] = data[[f'popularity_body_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'popularity_body_{hy}thHalfyear_max'] = data[[f'popularity_body_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-
-        data[f'comment_{hy}thHalfyear_var'] = data[[f'comment_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'comment_{hy}thHalfyear_mean'] = data[[f'comment_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'comment_{hy}thHalfyear_min'] = data[[f'comment_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'comment_{hy}thHalfyear_max'] = data[[f'comment_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
-        data[f'reply_{hy}thHalfyear_var'] = data[[f'reply_{hy * 6 - i}thMonth' for i in range(6)]].var(axis=1)
-        data[f'reply_{hy}thHalfyear_mean'] = data[[f'reply_{hy * 6 - i}thMonth' for i in range(6)]].mean(axis=1)
-        data[f'reply_{hy}thHalfyear_min'] = data[[f'reply_{hy * 6 - i}thMonth' for i in range(6)]].min(axis=1)
-        data[f'reply_{hy}thHalfyear_max'] = data[[f'reply_{hy * 6 - i}thMonth' for i in range(6)]].max(axis=1)
+        data[f'sales_model_{sea}thQuarter_var'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].var(axis=1)
+        data[f'sales_model_{sea}thQuarter_mean'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].mean(axis=1)
+        data[f'sales_model_{sea}thQuarter_min'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].min(axis=1)
+        data[f'sales_model_{sea}thQuarter_max'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].max(axis=1)
+        data[f'sales_pro_{sea}thQuarter_var'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].var(axis=1)
+        data[f'sales_pro_{sea}thQuarter_mean'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].mean(axis=1)
+        data[f'sales_pro_{sea}thQuarter_min'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].min(axis=1)
+        data[f'sales_pro_{sea}thQuarter_max'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].max(axis=1)
     data[f'sales_Year_var'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].var(axis=1)
     data[f'sales_Year_mean'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
     data[f'sales_Year_min'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].min(axis=1)
     data[f'sales_Year_max'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'sales_model_Year_var'] = data[[f'sales_model_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'sales_model_Year_mean'] = data[[f'sales_model_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'sales_model_Year_min'] = data[[f'sales_model_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'sales_model_Year_max'] = data[[f'sales_model_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'sales_pro_Year_var'] = data[[f'sales_pro_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'sales_pro_Year_mean'] = data[[f'sales_pro_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'sales_pro_Year_min'] = data[[f'sales_pro_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'sales_pro_Year_max'] = data[[f'sales_pro_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'sales_body_Year_var'] = data[[f'sales_body_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'sales_body_Year_mean'] = data[[f'sales_body_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'sales_body_Year_min'] = data[[f'sales_body_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'sales_body_Year_max'] = data[[f'sales_body_{i}thMonth' for i in range(1, 13)]].max(axis=1)
+    data[f'sales_model_Year_var'] = data[[f'sales_model_mean_{i}thMonth' for i in range(1, 13)]].var(axis=1)
+    data[f'sales_model_Year_mean'] = data[[f'sales_model_mean_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
+    data[f'sales_model_Year_min'] = data[[f'sales_model_mean_{i}thMonth' for i in range(1, 13)]].min(axis=1)
+    data[f'sales_model_Year_max'] = data[[f'sales_model_mean_{i}thMonth' for i in range(1, 13)]].max(axis=1)
+    data[f'sales_pro_Year_var'] = data[[f'sales_province_mean_{i}thMonth' for i in range(1, 13)]].var(axis=1)
+    data[f'sales_pro_Year_mean'] = data[[f'sales_province_mean_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
+    data[f'sales_pro_Year_min'] = data[[f'sales_province_mean_{i}thMonth' for i in range(1, 13)]].min(axis=1)
+    data[f'sales_pro_Year_max'] = data[[f'sales_province_mean_{i}thMonth' for i in range(1, 13)]].max(axis=1)
+    data[f'sales_body_Year_var'] = data[[f'sales_body_mean_{i}thMonth' for i in range(1, 13)]].var(axis=1)
+    data[f'sales_body_Year_mean'] = data[[f'sales_body_mean_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
+    data[f'sales_body_Year_min'] = data[[f'sales_body_mean_{i}thMonth' for i in range(1, 13)]].min(axis=1)
+    data[f'sales_body_Year_max'] = data[[f'sales_body_mean_{i}thMonth' for i in range(1, 13)]].max(axis=1)
+    #窗口和历史特征，窗口大小分别是3 4 5 6 7 12
 
-    data[f'popularity_Year_var'] = data[[f'popularity_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'popularity_Year_mean'] = data[[f'popularity_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'popularity_Year_min'] = data[[f'popularity_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'popularity_Year_max'] = data[[f'popularity_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'popularity_model_Year_var'] = data[[f'popularity_model_{i}thMonth' for i in range(1,13)]].var(axis=1)
-    data[f'popularity_model_Year_mean'] = data[[f'popularity_model_{i}thMonth' for i in range(1,13)]].mean(axis=1)
-    data[f'popularity_model_Year_min'] = data[[f'popularity_model_{i}thMonth' for i in range(1,13)]].min(axis=1)
-    data[f'popularity_model_Year_max'] = data[[f'popularity_model_{i}thMonth' for i in range(1,13)]].max(axis=1)
-    data[f'popularity_pro_Year_var'] = data[[f'popularity_pro_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'popularity_pro_Year_mean'] = data[[f'popularity_pro_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'popularity_pro_Year_min'] = data[[f'popularity_pro_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'popularity_pro_Year_max'] = data[[f'popularity_pro_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'popularity_body_Year_var'] = data[[f'popularity_body_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'popularity_body_Year_mean'] = data[[f'popularity_body_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'popularity_body_Year_min'] = data[[f'popularity_body_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'popularity_body_Year_max'] = data[[f'popularity_body_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'comment_Year_var'] = data[[f'comment_{i}thMonth' for i in range(1, 13)]].var(axis=1)
-    data[f'comment_Year_mean'] = data[[f'comment_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
-    data[f'comment_Year_min'] = data[[f'comment_{i}thMonth' for i in range(1, 13)]].min(axis=1)
-    data[f'comment_Year_max'] = data[[f'comment_{i}thMonth' for i in range(1, 13)]].max(axis=1)
-    data[f'reply_Year_var'] = data[[f'reply_{i}thMonth' for i in range(1,13)]].var(axis=1)
-    data[f'reply_Year_mean'] = data[[f'reply_{i}thMonth' for i in range(1,13)]].mean(axis=1)
-    data[f'reply_Year_min'] = data[[f'reply_{i}thMonth' for i in range(1,13)]].min(axis=1)
-    data[f'reply_Year_max'] = data[[f'reply_{i}thMonth' for i in range(1,13)]].max(axis=1)
+    for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            window_fea = [fea+f'{i}thMonth' for i in range(1,win_size+1)]
+            data[fea+f'window1_var_{win_size}'] = data[window_fea].var(axis=1)
+            data[fea+f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)
 
-    #差、比值特恒
-    for i in range(2,12):
-        data[f'sales_diff_{i}_{i-1}'] = data[f'sales_{i}thMonth']-data[f'sales_{i-1}thMonth']
-        data[f'popularity_diff_{i}_{i-1}'] = data[f'popularity_{i}thMonth']-data[f'popularity_{i-1}thMonth']
-        data[f'comment_diff_{i}_{i - 1}'] = data[f'comment_{i}thMonth'] - data[f'comment_{i - 1}thMonth']
-        data[f'reply_diff_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
-        data[f'sales_model_diff_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
-        data[f'popularity_model_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
-        data[f'sales_pro_diff_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
-        data[f'popularity_pro_diff_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
-        data[f'sales_body_diff_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
-        data[f'popularity_body_diff_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] - data[f'reply_{i - 1}thMonth']
+            #window_fea = [fea + f'{i}thMonth' for i in range(1, win_size)]
+            #data[fea + f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)
+    # for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
+    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+    #                 'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+    #                 'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+    #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+    #         window_fea = [fea+f'{i}thMonth' for i in range(2,win_size+1)]
+    #         data[fea+f'window2_var_{win_size}'] = data[window_fea].var(axis=1)
+    #         data[fea+f'window2_mean_{win_size}'] = data[window_fea].mean(axis=1)
+    #
+    # for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
+    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+    #                 'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+    #                 'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+    #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+    #         window_fea = [fea+f'{i}thMonth' for i in range(3,win_size+1)]
+    #         data[fea+f'window3_var_{win_size}'] = data[window_fea].var(axis=1)
+    #         data[fea+f'window3_mean_{win_size}'] = data[window_fea].mean(axis=1)
+    #
+    # for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
+    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+    #                 'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+    #                 'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+    #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+    #         window_fea = [fea+f'{i}thMonth' for i in range(4,win_size+1)]
+    #         data[fea+f'window4_var_{win_size}'] = data[window_fea].var(axis=1)
+    #         data[fea+f'window4_mean_{win_size}'] = data[window_fea].mean(axis=1)
+    #趋势特征:一阶
+    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]:
+        j = i+1
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            data[fea+f'_diff_{i}_{j}'] = data[fea+f'{i}thMonth'] - data[fea+f'{j}thMonth']
+            data[fea+f'_time_{i}_{j}'] = data[fea+f'{i}thMonth'] / data[fea+f'{j}thMonth']
+    # 趋势特征:二阶
+    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]:
+        j = i+1
+        k = i+2
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            data[fea+f'_diff_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] - data[fea+f'_diff_{j}_{k}']
+            data[fea+f'_time_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] / data[fea+f'_diff_{j}_{k}']
 
-        data[f'sales_time_{i}_{i-1}'] = data[f'sales_{i}thMonth']/data[f'sales_{i-1}thMonth']
-        data[f'popularity_time_{i}_{i-1}'] = data[f'popularity_{i}thMonth']/data[f'popularity_{i-1}thMonth']
-        data[f'comment_time_{i}_{i - 1}'] = data[f'comment_{i}thMonth'] / data[f'comment_{i - 1}thMonth']
-        data[f'reply_time_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-        data[f'sales_model_time_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-        data[f'popularity_model_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-        data[f'sales_pro_time_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-        data[f'popularity_pro_time_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-        data[f'sales_body_time_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-        data[f'popularity_body_time_{i}_{i - 1}'] = data[f'reply_{i}thMonth'] / data[f'reply_{i - 1}thMonth']
-
-    data['season'] = data['regMonth']%4
-    print()
-    print(data.info())
+    #print(data.info())
     with open(P_DATA + 'train_columns.txt', 'w') as train_f:
         for n in data.columns:
             train_f.write(str(n)+'\n')
     with open(P_DATA + 'train.pk', 'wb') as train_f:
         pickle.dump(data, train_f)
-
+    print(f'feature process use time {time.time()-t}')
 if __name__ == "__main__":
     t1 = time.time()
     feature_main()
-    print(time.time()-t1)
+    print('特征处理时间',time.time()-t1)
