@@ -24,14 +24,15 @@ sales_thMonth = [f'sales_{th - 1}thMonth' for th in range(2, 14)]
 
 
 def get_month_features(data, month):
+    month = month-24
     sales_thMonth = [f'sales_{th}thMonth' for th in [1,2,3,4,12]]
     sales_model_thMonth = [f'sales_model_mean_{th}thMonth' for th in [1,2,3,4,12]]
     sales_pro_thMonth = [f'sales_province_mean_{th}thMonth' for th in [1,2,3,4,12]]
     sales_body_thMonth = [f'sales_body_{th}thMonth' for th in list(range(1,month+4))+[12]]  # 效果不好
 
     popularity_thMonth = [f'popularity_{th}thMonth' for th in range(month, 13)]
-    popularity_model_thMonth = [f'popularity_model_{th}thMonth' for th in range(month, 13)]
-    popularity_pro_thMonth = [f'popularity_pro_{th}thMonth' for th in range(1, 13)]  # 效果不好
+    popularity_model_thMonth = [f'popularity_model_mean_{th}thMonth' for th in range(month, 13)]
+    popularity_pro_thMonth = [f'popularity_province_mean_{th}thMonth' for th in range(1, 13)]  # 效果不好
     popularity_body_thMonth = [f'popularity_body_{th}thMonth' for th in range(1, 13)]  # 效果不好
     comment_thMonth = [f'comment_{th}thMonth' for th in range(12, 13)]  # 效果不好
     reply_thMonth = [f'reply_{th}thMonth' for th in range(12, 13)]  # 效果不好
@@ -76,11 +77,12 @@ def get_month_features(data, month):
             window_features.append(fea + f'window1_var_{win_size}')
             window_features.append(fea + f'window1_mean_{win_size}')
     features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
-               sales_thQuarter
+               sales_thQuarter + popularity_thMonth+popularity_model_thMonth+popularity_pro_thMonth
     if month == 1:
         features = features
     elif month == 2:
-        features =  features
+        features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
+                   sales_thQuarter
     elif month == 3:
         sales_thMonth = [f'sales_{th}thMonth' for th in range(1,12)]
         sales_model_thMonth = [f'sales_model_mean_{th}thMonth' for th in range(month,12)]
@@ -195,15 +197,15 @@ def main(month, offline):
     # carCommentVolum newsReplyVolum popularity
     data, features = get_month_features(data, month)
     # 切分训练集、测试集
-    train_m = data[(data['regYear'] == 2017) | ( (data['regYear'] == 2018) & (data['regMonth'] <= month-1) )]
-    test_m = data[(data['regYear'] == 2018) & (data['regMonth'] == month)]
+    train_m = data[(data['ym']>=13) & (data['ym']<month)]
+    test_m = data[data['ym']==month]
     if offline:
         test_m = train_m[(train_m['regYear'] == 2017) & (train_m['regMonth'] >= 12)]
         train_m = train_m[(train_m['regYear'] != 2017) | (train_m['regMonth'] < 12)]
 
     numerical_features = ['adcode', 'regYear', 'regMonth',
                           ] + features
-    category_features1 = ['province', 'model', 'bodyType', 'mp_fea','season'
+    category_features1 = ['province', 'model', 'bodyType', 'mp_fea','season',
                           ]  # 需转换为数值类型
     category_features2 = []
 
@@ -251,22 +253,22 @@ if __name__ == "__main__":
     #分别运行4次 预测1月 2月 3月 4月
     test_DF = pd.DataFrame()
     #预测第一个月
-    feature_main()
-    label_df = main(1, False)
+    #feature_main()
+    label_df = main(25, False)
     print(np.mean(label_df['forecastVolum']))
     test_DF = test_DF.append(label_df)
     test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
 
     # 预测第二个月
     feature_main(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
-    label_df = main(2, False)
+    label_df = main(26, False)
     print(np.mean(label_df['forecastVolum']))
     test_DF = test_DF.append(label_df)
     test_DF.to_csv(P_SUBMIT + f'ccf_car_label_lgb_2month.csv', index=False)
 
     #预测第三个月
     feature_main(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
-    label_df = main(3, False)
+    label_df = main(27, False)
     print(np.mean(label_df['forecastVolum']))
 
     test_DF = test_DF.append(label_df)
@@ -274,7 +276,7 @@ if __name__ == "__main__":
 
     # 预测第四个月
     feature_main(P_SUBMIT + f'ccf_car_label_lgb_3month.csv')
-    label_df = main(4, False)
+    label_df = main(28, False)
     print(np.mean(label_df['forecastVolum']))
 
     test_DF = test_DF.append(label_df)

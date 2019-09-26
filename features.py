@@ -222,6 +222,16 @@ def feature_main(sales_path=None, offline=False):
             data[fea+f'_diff_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] - data[fea+f'_diff_{j}_{k}']
             data[fea+f'_time_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] / data[fea+f'_diff_{j}_{k}']
 
+
+    # data_ = data[data['ym']<=24][['model','province','popularity', 'carCommentVolum', 'newsReplyVolum','ym','label']].set_index(['model','province','ym']).unstack()
+    # from sklearn.cluster import KMeans
+    # kmeans = KMeans(n_clusters=5)
+    # kmeans.fit(data_.values)
+    # data_['cluster_sale'] = kmeans.labels_
+    # data_ = data_['cluster_sale'].reset_index()
+    # print(data_['cluster_sale'].value_counts())
+    # data = data.merge(data_, on=['model','province'], how='left')
+
     #print(data.info())
     with open(P_DATA + 'train_columns.txt', 'w') as train_f:
         for n in data.columns:
