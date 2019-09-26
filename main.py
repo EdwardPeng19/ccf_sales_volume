@@ -34,8 +34,8 @@ def get_month_features(data, month):
     popularity_model_thMonth = [f'popularity_model_mean_{th}thMonth' for th in range(month, 13)]
     popularity_pro_thMonth = [f'popularity_province_mean_{th}thMonth' for th in range(1, 13)]  # 效果不好
     popularity_body_thMonth = [f'popularity_body_{th}thMonth' for th in range(1, 13)]  # 效果不好
-    comment_thMonth = [f'comment_{th}thMonth' for th in range(12, 13)]  # 效果不好
-    reply_thMonth = [f'reply_{th}thMonth' for th in range(12, 13)]  # 效果不好
+    comment_thMonth = [f'comment_{th}thMonth' for th in range(1, 13)]  # 效果不好
+    reply_thMonth = [f'reply_{th}thMonth' for th in range(1, 13)]  # 效果不好
 
     sales_thQuarter = []
     for sea in [1,4]:
@@ -77,7 +77,8 @@ def get_month_features(data, month):
             window_features.append(fea + f'window1_var_{win_size}')
             window_features.append(fea + f'window1_mean_{win_size}')
     features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
-               sales_thQuarter + popularity_thMonth+popularity_model_thMonth+popularity_pro_thMonth
+               sales_thQuarter +  \
+               popularity_thMonth+popularity_model_thMonth+popularity_pro_thMonth + comment_thMonth + reply_thMonth
     if month == 1:
         features = features
     elif month == 2:
