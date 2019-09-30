@@ -236,6 +236,8 @@ def get_month_features(data, month):
 def main(month, offline):
     data = pd.read_pickle(P_DATA + 'train.pk')
     data['season'] = data['regMonth'] % 4
+
+    data['label'] = np.log(data['label'])
     model_type = 'lgb'
     label = 'label'
     # carCommentVolum newsReplyVolum popularity
@@ -247,15 +249,15 @@ def main(month, offline):
         test_m = train_m[(train_m['regYear'] == 2017) & (train_m['regMonth'] >= 12)]
         train_m = train_m[(train_m['regYear'] != 2017) | (train_m['regMonth'] < 12)]
 
-    numerical_features = ['adcode', 'regYear', 'regMonth',
-                          ] + features
-    category_features1 = ['province', 'model', 'bodyType', 'mp_fea','season',
+    numerical_features = ['adcode', 'regYear', 'regMonth','weightMonth'
+                          ] + features + ['carCommentVolum', 'newsReplyVolum', 'popularity','bt_ry_mean', 'ad_ry_mean', 'md_ry_mean']
+    category_features1 = ['province', 'model', 'bodyType', 'mp_fea','season','happyNY'
                           ]  # 需转换为数值类型
     category_features2 = []
 
     pred, train_pred = reg_model(train_m, test_m, label, model_type, numerical_features, category_features1,category_features2, seed=2019)
     test_m['forecastVolum'] = pred
-    test_m['forecastVolum'] = test_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x)
+    test_m['forecastVolum'] = np.e ** test_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x)
     train_m['forecastVolum'] = train_pred
     train_m['forecastVolum'] = train_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x)
     train_m[['id', 'forecastVolum', 'label']] = train_m[['id', 'forecastVolum', 'label']].round().astype(int)
@@ -299,27 +301,27 @@ if __name__ == "__main__":
 
     #预测第一个月
     # feature_main()
-    # label_df1 = main(25, False)
-    # label_df1.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
-    #
-    # # 预测第二个月
-    # feature_main(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
-    # label_df2 = main(26, False)
-    #
-    # label_df1 = pd.read_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
-    # label_df2 = label_df1.append(label_df2)
-    # label_df2.to_csv(P_SUBMIT + f'ccf_car_label_lgb_2month.csv', index=False)
+    label_df1 = main(25, False)
+    label_df1.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
+
+    # 预测第二个月
+    feature_main(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
+    label_df2 = main(26, False)
+
+    label_df1 = pd.read_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
+    label_df2 = label_df1.append(label_df2)
+    label_df2.to_csv(P_SUBMIT + f'ccf_car_label_lgb_2month.csv', index=False)
 
     #预测第三个月
-    #feature_main(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
-    # label_df3 = main(27, False)
-    #
-    # label_df2 = pd.read_csv(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
-    # label_df3 = label_df2.append(label_df3)
-    # label_df3.to_csv(P_SUBMIT + f'ccf_car_label_lgb_3month.csv', index=False)
-    #
-    # # 预测第四个月
-    # feature_main(P_SUBMIT + f'ccf_car_label_lgb_3month.csv')
+    feature_main(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
+    label_df3 = main(27, False)
+
+    label_df2 = pd.read_csv(P_SUBMIT + f'ccf_car_label_lgb_2month.csv')
+    label_df3 = label_df2.append(label_df3)
+    label_df3.to_csv(P_SUBMIT + f'ccf_car_label_lgb_3month.csv', index=False)
+
+    # 预测第四个月
+    feature_main(P_SUBMIT + f'ccf_car_label_lgb_3month.csv')
     label_df4 = main(28, False)
 
     label_df3 = pd.read_csv(P_SUBMIT + f'ccf_car_label_lgb_3month.csv')

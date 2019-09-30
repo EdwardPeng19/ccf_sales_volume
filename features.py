@@ -23,6 +23,10 @@ def train_input():
     train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
     evaluation_public = pd.read_csv(P_DATA + 'evaluation_public.csv', encoding='utf-8')
 
+    train_sales_model['bt_ry_mean'] = train_sales_model.groupby(['bodyType', 'regYear'])['salesVolume'].transform('mean')
+    train_sales_model['ad_ry_mean'] = train_sales_model.groupby(['adcode', 'regYear'])['salesVolume'].transform('mean')
+    train_sales_model['md_ry_mean'] = train_sales_model.groupby(['model', 'regYear'])['salesVolume'].transform('mean')
+
     data = pd.concat([train_sales_model, evaluation_public], ignore_index=True)
     data = data.merge(train_search, how='left', on=['province', 'adcode', 'model', 'regYear', 'regMonth'])
     data = data.merge(train_user_reply, how='left', on=['model', 'regYear', 'regMonth'])
@@ -31,6 +35,15 @@ def train_input():
     del data['salesVolume'], data['forecastVolum']
     #print(data.info())
     data['bodyType'] = data['model'].map(train_sales_model.drop_duplicates('model').set_index('model')['bodyType'])
+
+    # 填充测试集特征值
+    for col in ['carCommentVolum', 'newsReplyVolum', 'popularity', 'bt_ry_mean', 'ad_ry_mean', 'md_ry_mean']:
+        lgb_col_na = pd.isnull(data[col])
+        data[col] = data[col].replace(0, 1)
+        data.loc[lgb_col_na, col] = \
+            ((((data.loc[(data['regYear'].isin([2017])) & (data['regMonth'].isin([1, 2, 3, 4])), col].values /
+                data.loc[(data['regYear'].isin([2016])) & (data['regMonth'].isin([1, 2, 3, 4])), col].values))) *
+             data.loc[(data['regYear'].isin([2017])) & (data['regMonth'].isin([1, 2, 3, 4])), col].values * 1.03).round()
     return data
 
 def cut_season(x):
@@ -47,29 +60,11 @@ def cut_season(x):
 def window_rollth(x):
     return list(x)[0]
 
+
 def feature_main(sales_path=None, offline=False):
     t = time.time()
-    data = train_input()
-    #窗口平移 #'popularity', 'carCommentVolum', 'newsReplyVolum'
-    data['season'] = data.apply(lambda x: cut_season(x['regMonth']), axis=1)
-    data['mp_fea'] = data['adcode'].astype(str) + data['model']
-
-    data['label'] = data['label'].fillna(0)
-    data['popularity'] = data['popularity'].fillna(0)
-    data['carCommentVolum'] = data['carCommentVolum'].fillna(0)
-    data['newsReplyVolum'] = data['newsReplyVolum'].fillna(0)
-
-    for i in ['bodyType', 'model']:
-        data[i] = data[i].map(dict(zip(data[i].unique(), range(data[i].nunique())))) # model:60 body:4
-
-    data['ym'] = (data['regYear'] - 2016) * 12 + data['regMonth']  # 1-24 25 26 27 28
-    data['model_adcode'] = data['adcode'] + data['model']  # 56：省份， 12：车型
-    data['model_ym'] = data['model'] * 100 + data['ym']  # 34：车型， 12：年月
-    data['adcode_ym'] = data['adcode'] + data['ym']  # 34：省份， 12：年月
-    data['body_ym'] = data['bodyType'] * 100 + data['ym']  # 34：车身， 12：年月
-    data['model_adcode_ym'] = data['model_adcode'] * 100 + data['ym']  # 78:省份 34：车型 ， 12：年月
-
     if sales_path:
+        data = pd.read_pickle(P_DATA + 'train_pre.pk')
         if offline:
             sales_data = pd.read_csv(sales_path)[['y_hat','model_adcode_ym']]
             data = data.merge(sales_data, how='left', on='model_adcode_ym')
@@ -81,11 +76,38 @@ def feature_main(sales_path=None, offline=False):
             data = data.merge(sales_data, how='left', on='id')
             data['label'] = data.apply(lambda x: x['salesNum'] if x['salesNum']>0 else x['label'] , axis=1)
             #data['label'] = data['label'].map(sales_data['forecastVolum'])
+    else :
+        data = train_input()
+        # 窗口平移 #'popularity', 'carCommentVolum', 'newsReplyVolum'
+        data['season'] = data.apply(lambda x: cut_season(x['regMonth']), axis=1)
+        data['mp_fea'] = data['adcode'].astype(str) + data['model']
 
-    # with open(P_DATA + 'train_test.pk', 'wb') as train_f:
-    #     pickle.dump(data, train_f)
-    # print(f'feature process use time {time.time()-t}')
-    # sys.exit(-1)
+        data['label'] = data['label'].fillna(0)
+        data['popularity'] = data['popularity'].fillna(0)
+        data['carCommentVolum'] = data['carCommentVolum'].fillna(0)
+        data['newsReplyVolum'] = data['newsReplyVolum'].fillna(0)
+
+        for i in ['bodyType', 'model']:
+            data[i] = data[i].map(dict(zip(data[i].unique(), range(data[i].nunique()))))  # model:60 body:4
+
+        data['ym'] = (data['regYear'] - 2016) * 12 + data['regMonth']  # 1-24 25 26 27 28
+        data['model_adcode'] = data['adcode'] + data['model']  # 56：省份， 12：车型
+        data['model_ym'] = data['model'] * 100 + data['ym']  # 34：车型， 12：年月
+        data['adcode_ym'] = data['adcode'] + data['ym']  # 34：省份， 12：年月
+        data['body_ym'] = data['bodyType'] * 100 + data['ym']  # 34：车身， 12：年月
+        data['model_adcode_ym'] = data['model_adcode'] * 100 + data['ym']  # 78:省份 34：车型 ， 12：年月
+
+        a = 6
+        b = 4
+        data['weightMonth'] = data['regMonth'].map({1: a, 2: a, 3: a, 4: a,
+                                                    5: b, 6: b, 7: b, 8: b, 9: b, 10: b, 11: b, 12: b, })
+        data['happyNY'] = 0  # 重要特征
+        data.loc[(data['regYear'].isin([2016, 2018]) & data['regMonth'].isin([2])), 'happyNY'] = 1
+        data.loc[(data['regYear'].isin([2017]) & data['regMonth'].isin([1])), 'happyNY'] = 1
+
+        with open(P_DATA + 'train_pre.pk', 'wb') as train_f:
+            pickle.dump(data, train_f)
+
     #print('shift 特征')
     for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13]:
         # 对销量和搜索量
@@ -165,14 +187,14 @@ def feature_main(sales_path=None, offline=False):
     data[f'sales_body_Year_max'] = data[[f'sales_body_mean_{i}thMonth' for i in range(1, 13)]].max(axis=1)
     #窗口和历史特征，窗口大小分别是3 4 5 6 7 12
 
-    for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
-        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
-                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
-                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
-                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
-            window_fea = [fea+f'{i}thMonth' for i in range(1,win_size+1)]
-            data[fea+f'window1_var_{win_size}'] = data[window_fea].var(axis=1)
-            data[fea+f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)
+    # for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
+    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+    #                 'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+    #                 'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+    #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+    #         window_fea = [fea+f'{i}thMonth' for i in range(1,win_size+1)]
+    #         data[fea+f'window1_var_{win_size}'] = data[window_fea].var(axis=1)
+    #         data[fea+f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)
 
             #window_fea = [fea + f'{i}thMonth' for i in range(1, win_size)]
             #data[fea + f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)
@@ -212,15 +234,15 @@ def feature_main(sales_path=None, offline=False):
             data[fea+f'_diff_{i}_{j}'] = data[fea+f'{i}thMonth'] - data[fea+f'{j}thMonth']
             data[fea+f'_time_{i}_{j}'] = data[fea+f'{i}thMonth'] / data[fea+f'{j}thMonth']
     # 趋势特征:二阶
-    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]:
-        j = i+1
-        k = i+2
-        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
-                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
-                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
-                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
-            data[fea+f'_diff_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] - data[fea+f'_diff_{j}_{k}']
-            data[fea+f'_time_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] / data[fea+f'_diff_{j}_{k}']
+    # for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]:
+    #     j = i+1
+    #     k = i+2
+    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+    #                 'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+    #                 'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+    #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+    #         data[fea+f'_diff_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] - data[fea+f'_diff_{j}_{k}']
+    #         data[fea+f'_time_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] / data[fea+f'_diff_{j}_{k}']
 
 
     # data_ = data[data['ym']<=24][['model','province','popularity', 'carCommentVolum', 'newsReplyVolum','ym','label']].set_index(['model','province','ym']).unstack()
