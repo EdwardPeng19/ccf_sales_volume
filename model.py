@@ -100,7 +100,7 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
     kfolder = KFold(n_splits=n_fold, shuffle=True, random_state=seed)
     kfold = kfolder.split(train_x, train_y)
     for train_index, vali_index in kfold:
-        print("training......fold",count_fold)
+        #print("training......fold",count_fold)
         count_fold = count_fold + 1
         k_x_train = train_x.loc[train_index]
         k_y_train = train_y.loc[train_index]

@@ -39,8 +39,7 @@ def get_month_features(data, month):
 
         sales_thQuarter = []
         for sea in [1, 4]:
-            sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var',
-                                    ])
+            sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var',])
 
         # 差、比值特恒
         trend_features = []
@@ -94,8 +93,7 @@ def get_month_features(data, month):
 
         sales_thQuarter = []
         for sea in [1, 4]:
-            sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var',
-                                    ])
+            sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var',])
         # 差、比值特恒
         trend_features = []
         for i in [11]:
@@ -185,22 +183,9 @@ def get_month_features(data, month):
         sales_pro_thMonth = [f'sales_province_mean_{th}thMonth' for th in range(month, 12)]
         #sales_body_thMonth = [f'sales_body_mean_{th}thMonth' for th in range(month, 12)]  # 效果不好
 
-        popularity_thMonth = [f'popularity_{th}thMonth' for th in range(month, 13)]
-        popularity_model_thMonth = [f'popularity_model_{th}thMonth' for th in range(month, 13)]
-        popularity_pro_thMonth = [f'popularity_pro_{th}thMonth' for th in range(1, 13)]  # 效果不好
-        popularity_body_thMonth = [f'popularity_body_{th}thMonth' for th in range(1, 13)]  # 效果不好
         comment_thMonth = [f'comment_{th}thMonth' for th in range(month, 13)]  # 效果不好
         reply_thMonth = [f'reply_{th}thMonth' for th in range(month, 13)]  # 效果不好
 
-        sales_thQuarter = []
-        # for sea in [1, 2, 3, 4]:
-        #     tmp = [f'sales_{sea}thQuarter_var', f'sales_{sea}thQuarter_mean', f'sales_{sea}thQuarter_min', f'sales_{sea}thQuarter_max',
-        #            f'sales_model_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_mean', f'sales_model_{sea}thQuarter_min', f'sales_model_{sea}thQuarter_max',
-        #            ]
-        #     sales_thQuarter.extend(tmp)
-        # for hy in [1, 2]:
-        #     tmp = [f'sales_{hy}thHalfyear_var', f'sales_{hy}thHalfyear_mean', f'sales_{hy}thHalfyear_min', f'sales_{hy}thHalfyear_max']
-        #     sales_thQuarter.extend(tmp)
         # 一阶趋势特征
         diff_features = []
         time_features = []
@@ -237,6 +222,7 @@ def main(month, offline):
     data = pd.read_pickle(P_DATA + 'train.pk')
     data['season'] = data['regMonth'] % 4
 
+
     data['label'] = np.log(data['label'])
     model_type = 'lgb'
     label = 'label'
@@ -250,8 +236,9 @@ def main(month, offline):
         train_m = train_m[(train_m['regYear'] != 2017) | (train_m['regMonth'] < 12)]
 
     numerical_features = ['adcode', 'regYear', 'regMonth','weightMonth'
-                          ] + features + ['carCommentVolum', 'newsReplyVolum', 'popularity','bt_ry_mean', 'ad_ry_mean', 'md_ry_mean']
-    category_features1 = ['province', 'model', 'bodyType', 'mp_fea','season','happyNY'
+                          ] + features + ['carCommentVolum', 'newsReplyVolum', 'popularity','bt_ry_mean', 'ad_ry_mean', 'md_ry_mean'] + ['days','workdays','weekends','holidays']
+    category_features1 = ['province', 'model', 'bodyType', 'model_adcode','season','happyNY',
+
                           ]  # 需转换为数值类型
     category_features2 = []
 
@@ -300,10 +287,10 @@ if __name__ == "__main__":
     #分别运行4次 预测1月 2月 3月 4月
 
     #预测第一个月
-    # feature_main()
+    feature_main()
     label_df1 = main(25, False)
     label_df1.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
-
+    #sys.exit(-1)
     # 预测第二个月
     feature_main(P_SUBMIT + f'ccf_car_label_lgb_1month.csv')
     label_df2 = main(26, False)

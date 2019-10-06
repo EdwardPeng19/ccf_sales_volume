@@ -88,7 +88,7 @@ data.loc[pd.isnull(data['shift_model_adcode_mt_label_4']), 'shift_model_adcode_m
      data.loc[(data.regMonth.isin([1, 2, 3, 4])) & (data.regYear.isin([2016])), 'label'].values).round()
 
 # 根据月份添加权重值
-a = 6;
+a = 6
 b = 4
 data['weightMonth'] = data['regMonth'].map({1: a, 2: a, 3: a, 4: a,
                                             5: b, 6: b, 7: b, 8: b, 9: b, 10: b, 11: b, 12: b, })

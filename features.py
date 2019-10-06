@@ -22,6 +22,7 @@ def train_input():
     train_search = pd.read_csv(P_DATA + 'train_search_data.csv', encoding='utf-8')
     train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
     evaluation_public = pd.read_csv(P_DATA + 'evaluation_public.csv', encoding='utf-8')
+    workdays_info = pd.read_csv(P_DATA + 'workdays.csv', encoding='utf-8')
 
     train_sales_model['bt_ry_mean'] = train_sales_model.groupby(['bodyType', 'regYear'])['salesVolume'].transform('mean')
     train_sales_model['ad_ry_mean'] = train_sales_model.groupby(['adcode', 'regYear'])['salesVolume'].transform('mean')
@@ -30,6 +31,8 @@ def train_input():
     data = pd.concat([train_sales_model, evaluation_public], ignore_index=True)
     data = data.merge(train_search, how='left', on=['province', 'adcode', 'model', 'regYear', 'regMonth'])
     data = data.merge(train_user_reply, how='left', on=['model', 'regYear', 'regMonth'])
+    data = data.merge(workdays_info, how='left', on=['regYear', 'regMonth'])
+
     data['id'] = data['id'].fillna(0).astype(int)
     data['label'] = data['salesVolume']
     del data['salesVolume'], data['forecastVolum']
@@ -80,7 +83,6 @@ def feature_main(sales_path=None, offline=False):
         data = train_input()
         # 窗口平移 #'popularity', 'carCommentVolum', 'newsReplyVolum'
         data['season'] = data.apply(lambda x: cut_season(x['regMonth']), axis=1)
-        data['mp_fea'] = data['adcode'].astype(str) + data['model']
 
         data['label'] = data['label'].fillna(0)
         data['popularity'] = data['popularity'].fillna(0)
@@ -105,6 +107,24 @@ def feature_main(sales_path=None, offline=False):
         data.loc[(data['regYear'].isin([2016, 2018]) & data['regMonth'].isin([2])), 'happyNY'] = 1
         data.loc[(data['regYear'].isin([2017]) & data['regMonth'].isin([1])), 'happyNY'] = 1
 
+        # data.loc[(data['regYear'].isin([2016]) & data['regMonth'].isin([1])), 'happyNY'] = 2
+        # data.loc[(data['regYear'].isin([2016]) & data['regMonth'].isin([12])), 'happyNY'] = 2
+        # data.loc[(data['regYear'].isin([2018]) & data['regMonth'].isin([1])), 'happyNY'] = 2
+        #
+        # data.loc[(data['regYear'].isin([2016]) & data['regMonth'].isin([3])), 'happyNY'] = 3
+        # data.loc[(data['regYear'].isin([2017]) & data['regMonth'].isin([2])), 'happyNY'] = 3
+        # data.loc[(data['regYear'].isin([2018]) & data['regMonth'].isin([3])), 'happyNY'] = 3
+
+        # data_ = data[data['ym']<=24][['model','province','ym', 'popularity', 'carCommentVolum', 'newsReplyVolum','label', ]].set_index(['model','province','ym']).unstack()
+        # from sklearn.cluster import KMeans
+        # kmeans = KMeans(n_clusters=5)
+        # kmeans.fit(data_.values)
+        # data_['cluster_sale'] = kmeans.labels_
+        # data_ = data_['cluster_sale'].reset_index()
+        # print(data_['cluster_sale'].value_counts())
+        # print(data.info())
+        # data = data.merge(data_, on=['model','province'], how='left')
+        # print(data.info())
         with open(P_DATA + 'train_pre.pk', 'wb') as train_f:
             pickle.dump(data, train_f)
 
@@ -157,18 +177,9 @@ def feature_main(sales_path=None, offline=False):
     # sys.exit(-1)
     for sea in [1, 2, 3, 4]:
         data[f'sales_{sea}thQuarter_var'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'sales_{sea}thQuarter_std'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].std(axis=1)
         data[f'sales_{sea}thQuarter_mean'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'sales_{sea}thQuarter_min'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'sales_{sea}thQuarter_max'] = data[[f'sales_{sea * 3 - 2}thMonth', f'sales_{sea * 3 - 1}thMonth', f'sales_{sea * 3 - 0}thMonth']].max(axis=1)
         data[f'sales_model_{sea}thQuarter_var'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].var(axis=1)
         data[f'sales_model_{sea}thQuarter_mean'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'sales_model_{sea}thQuarter_min'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'sales_model_{sea}thQuarter_max'] = data[[f'sales_model_mean_{sea * 3 - 2}thMonth', f'sales_model_mean_{sea * 3 - 1}thMonth', f'sales_model_mean_{sea * 3 - 0}thMonth']].max(axis=1)
-        data[f'sales_pro_{sea}thQuarter_var'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].var(axis=1)
-        data[f'sales_pro_{sea}thQuarter_mean'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].mean(axis=1)
-        data[f'sales_pro_{sea}thQuarter_min'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].min(axis=1)
-        data[f'sales_pro_{sea}thQuarter_max'] = data[[f'sales_province_mean_{sea * 3 - 2}thMonth', f'sales_province_mean_{sea * 3 - 1}thMonth', f'sales_province_mean_{sea * 3 - 0}thMonth']].max(axis=1)
     data[f'sales_Year_var'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].var(axis=1)
     data[f'sales_Year_mean'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].mean(axis=1)
     data[f'sales_Year_min'] = data[[f'sales_{i}thMonth' for i in range(1, 13)]].min(axis=1)
@@ -233,6 +244,16 @@ def feature_main(sales_path=None, offline=False):
                     'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
             data[fea+f'_diff_{i}_{j}'] = data[fea+f'{i}thMonth'] - data[fea+f'{j}thMonth']
             data[fea+f'_time_{i}_{j}'] = data[fea+f'{i}thMonth'] / data[fea+f'{j}thMonth']
+
+    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]:
+        j = i+1
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                    'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                    'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+            data[fea+f'_diff_{i}_{j}'] = data[fea+f'{i}thMonth'] - data[fea+f'{j}thMonth']
+            data[fea+f'_time_{i}_{j}'] = data[fea+f'{i}thMonth'] / data[fea+f'{j}thMonth']
+
     # 趋势特征:二阶
     # for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]:
     #     j = i+1
@@ -245,14 +266,7 @@ def feature_main(sales_path=None, offline=False):
     #         data[fea+f'_time_{i}_{j}2'] = data[fea+f'_diff_{i}_{j}'] / data[fea+f'_diff_{j}_{k}']
 
 
-    # data_ = data[data['ym']<=24][['model','province','popularity', 'carCommentVolum', 'newsReplyVolum','ym','label']].set_index(['model','province','ym']).unstack()
-    # from sklearn.cluster import KMeans
-    # kmeans = KMeans(n_clusters=5)
-    # kmeans.fit(data_.values)
-    # data_['cluster_sale'] = kmeans.labels_
-    # data_ = data_['cluster_sale'].reset_index()
-    # print(data_['cluster_sale'].value_counts())
-    # data = data.merge(data_, on=['model','province'], how='left')
+
 
     #print(data.info())
     with open(P_DATA + 'train_columns.txt', 'w') as train_f:
