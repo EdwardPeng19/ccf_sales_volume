@@ -50,6 +50,26 @@ print('-----------------------------')
 436.58560606060604
 -----------------------------  0.59739631000
 
-
+feature process use time 18.089632511138916
+特征数量为44
+LabelEncoder Successfully!
+train_mae:0.13099747474747475,train_mse:0.13339646464646465
+month 25: 520.1598484848485
+feature process use time 20.59395670890808
+特征数量为19
+LabelEncoder Successfully!
+train_mae:0.12727272727272726,train_mse:0.1294871794871795
+month 26: 301.2409090909091
+feature process use time 20.76348567008972
+特征数量为65
+LabelEncoder Successfully!
+train_mae:0.12516233766233767,train_mse:0.1268939393939394
+month 27: 432.5681818181818
+feature process use time 25.017690658569336
+特征数量为201
+LabelEncoder Successfully!
+train_mae:0.11055555555555556,train_mse:0.11217171717171717
+month 28: 436.58560606060604
+feature process use time 22.580257415771484
 '''
 

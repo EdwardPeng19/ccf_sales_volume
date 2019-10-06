@@ -234,9 +234,12 @@ def main(month, offline):
     if offline:
         test_m = train_m[(train_m['regYear'] == 2017) & (train_m['regMonth'] >= 12)]
         train_m = train_m[(train_m['regYear'] != 2017) | (train_m['regMonth'] < 12)]
-
+    month_features = []
+    for i in range(1,13):
+        for f in ['days','workdays','weekends','holidays']:
+            month_features.append(f'{f}_shift{i}')
     numerical_features = ['adcode', 'regYear', 'regMonth','weightMonth'
-                          ] + features + ['carCommentVolum', 'newsReplyVolum', 'popularity','bt_ry_mean', 'ad_ry_mean', 'md_ry_mean'] + ['days','workdays','weekends','holidays']
+                          ] + features + ['carCommentVolum', 'newsReplyVolum', 'popularity','bt_ry_mean', 'ad_ry_mean', 'md_ry_mean'] + ['days','workdays','weekends','holidays']+month_features
     category_features1 = ['province', 'model', 'bodyType', 'model_adcode','season','happyNY',
 
                           ]  # 需转换为数值类型

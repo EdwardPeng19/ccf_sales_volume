@@ -167,6 +167,10 @@ def feature_main(sales_path=None, offline=False):
         data[f'popularity_body_mean_{i}thMonth'] = data['body_ym'].map(body_sta.sum()['popularity'])
         data[f'popularity_body_var_{i}thMonth'] = data['body_ym'].map(body_sta.var()['popularity'])
 
+        #['days', 'workdays', 'weekends', 'holidays']
+
+
+
         del data['model_adcode_ym_{0}'.format(i)]
         del data['model_ym_{0}'.format(i)]
         del data['adcode_ym_{0}'.format(i)]
