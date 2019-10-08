@@ -17,7 +17,7 @@ from sklearn.ensemble import RandomForestRegressor
 lgb_params = {
     'boosting_type': 'gbdt',
     'objective': 'regression',
-    'n_estimators': 1000,
+    'n_estimators': 500,
     'metric': 'mae',
     'learning_rate': 0.01,
     'min_child_samples': 5,

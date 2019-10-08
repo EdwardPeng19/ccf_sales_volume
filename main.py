@@ -214,7 +214,14 @@ def get_month_features(data, month):
     else:
         print("输入月份不合法")
         features = []
-    print(f'特征数量为{len(features)}')
+    #print(f'特征数量为{len(features)}')
+    # window_features = []
+    # for win_size in [3]:
+    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+    #                 'sales_province_mean_',
+    #                 'sales_model_mean_',]:
+    #         window_features.append(fea + f'window1_var_{win_size}')
+    #         window_features.append(fea + f'window1_sum_{win_size}')
     return data, features
 
 
@@ -223,9 +230,9 @@ def main(month, offline):
     data['season'] = data['regMonth'] % 4
 
 
-    data['label'] = np.log(data['label'])
+    data['n_label'] = np.log(data['label'])
     model_type = 'lgb'
-    label = 'label'
+    label = 'n_label'
     # carCommentVolum newsReplyVolum popularity
     data, features = get_month_features(data, month)
     # 切分训练集、测试集
@@ -247,9 +254,9 @@ def main(month, offline):
 
     pred, train_pred = reg_model(train_m, test_m, label, model_type, numerical_features, category_features1,category_features2, seed=2019)
     test_m['forecastVolum'] = pred
-    test_m['forecastVolum'] = np.e ** test_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x)
+    test_m['forecastVolum'] = np.e ** (test_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x))
     train_m['forecastVolum'] = train_pred
-    train_m['forecastVolum'] = train_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x)
+    train_m['forecastVolum'] = np.e ** (train_m['forecastVolum'].apply(lambda x: 0 if x < 0 else x))
     train_m[['id', 'forecastVolum', 'label']] = train_m[['id', 'forecastVolum', 'label']].round().astype(int)
     if offline:
         # 线下评测
@@ -259,10 +266,9 @@ def main(month, offline):
         mae = mean_absolute_error(test_m['label'], test_m['forecastVolum'])
         mse = mean_squared_error(test_m['label'], test_m['forecastVolum'])
 
-        models = data['model'].value_counts().index
         mEvalTrain = 0
         mEvalTest = 0
-        for m in models:
+        for m in range(60):
             # 训练集NRMSE
             df_train = train_m[train_m['model'] == m]
             m_eval_train = eval_model(df_train['label'], df_train['forecastVolum'])
@@ -271,8 +277,8 @@ def main(month, offline):
             df_test = test_m[test_m['model'] == m]
             m_eval_test = eval_model(df_test['label'], df_test['forecastVolum'])
             mEvalTest = mEvalTest + m_eval_test
-        train_score = 1 - mEvalTrain / len(models)
-        test_score = 1 - mEvalTest / len(models)
+        train_score = 1 - mEvalTrain / 60
+        test_score = 1 - mEvalTest / 60
 
         print(f'test_mae:{mae},mse:{mse},score:{test_score}, train_mae:{mae_train},mse:{mse_train}, score:{train_score}')
         sys.exit(-1)
@@ -290,7 +296,7 @@ if __name__ == "__main__":
     #分别运行4次 预测1月 2月 3月 4月
 
     #预测第一个月
-    feature_main()
+    #feature_main()
     label_df1 = main(25, False)
     label_df1.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
     #sys.exit(-1)
@@ -321,3 +327,8 @@ if __name__ == "__main__":
 
     feature_main(P_SUBMIT + f'ccf_car_sales_lgb_full.csv')
 
+'''
+test_mae:204.5507575757576,mse:196497.3053030303,score:0.6685043927457766, train_mae:63.95323691460055,mse:21382.631749311295, score:0.7880528771331222
+
+
+'''

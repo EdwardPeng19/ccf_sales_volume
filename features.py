@@ -209,7 +209,7 @@ def feature_main(sales_path=None, offline=False):
     #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
     #         window_fea = [fea+f'{i}thMonth' for i in range(1,win_size+1)]
     #         data[fea+f'window1_var_{win_size}'] = data[window_fea].var(axis=1)
-    #         data[fea+f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)
+    #         data[fea+f'window1_sum_{win_size}'] = data[window_fea].sum(axis=1)
 
             #window_fea = [fea + f'{i}thMonth' for i in range(1, win_size)]
             #data[fea + f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)

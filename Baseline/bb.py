@@ -2,21 +2,21 @@ import pandas as pd
 import numpy as np
 import sys
 #规则融合
-# bb = pd.read_csv('./sub_rule2.csv').sort_values(by='id').reset_index(drop=True)
-# bb2 = pd.read_csv('../submit/ccf_car_sales_lgb_full.csv').sort_values(by='id').reset_index(drop=True)
-# bb3 = pd.read_csv('./sub_lgb.csv').sort_values(by='id').reset_index(drop=True)
-#
-# pp = pd.DataFrame()
-# pp['id'] = bb2['id']
-# pp['forecastVolum'] = bb['forecastVolum']*0.2 + bb2['forecastVolum']*0.5 + bb3['forecastVolum']*0.3
-# pp['forecastVolum'] = pp['forecastVolum'].round().astype(int)
-# pp.to_csv('./rule_lgb_sub5.csv', index=False)
-#
-# print('融合平均结果',np.mean(pp['forecastVolum']))
-# print(np.mean(pp[pp['id']<=1342]['forecastVolum']))
-# print(np.mean(pp[(pp['id']>1342) & (bb['id']<=2684)]['forecastVolum']))
-# print(np.mean(pp[(pp['id']>2684) & (bb['id']<=4026)]['forecastVolum']))
-# print(np.mean(pp[(pp['id']>4026)]['forecastVolum']))
+bb = pd.read_csv('./sub_rule2.csv').sort_values(by='id').reset_index(drop=True)
+bb2 = pd.read_csv('../submit/ccf_car_sales_lgb_full.csv').sort_values(by='id').reset_index(drop=True)
+bb3 = pd.read_csv('./sub_lgb.csv').sort_values(by='id').reset_index(drop=True)
+
+pp = pd.DataFrame()
+pp['id'] = bb2['id']
+pp['forecastVolum'] = bb['forecastVolum']*0.25 + bb2['forecastVolum']*0.7 + bb3['forecastVolum']*0.05
+pp['forecastVolum'] = pp['forecastVolum'].round().astype(int)
+pp.to_csv('./rule_lgb_sub.csv', index=False)
+
+print('融合平均结果',np.mean(pp['forecastVolum']))
+print(np.mean(pp[pp['id']<=1342]['forecastVolum']))
+print(np.mean(pp[(pp['id']>1342) & (bb['id']<=2684)]['forecastVolum']))
+print(np.mean(pp[(pp['id']>2684) & (bb['id']<=4026)]['forecastVolum']))
+print(np.mean(pp[(pp['id']>4026)]['forecastVolum']))
 
 
 
@@ -71,5 +71,41 @@ LabelEncoder Successfully!
 train_mae:0.11055555555555556,train_mse:0.11217171717171717
 month 28: 436.58560606060604
 feature process use time 22.580257415771484
+
+单模计算结果 422.97670454545454
+509.05833333333334
+310.2659090909091
+427.8992424242424
+444.68333333333334   0.59774762000
+
+feature process use time 19.210635900497437
+特征数量为44
+LabelEncoder Successfully!
+train_mae:0.13150252525252526,train_mse:0.13390151515151516
+month 25: 509.05833333333334
+feature process use time 20.84626054763794
+特征数量为19
+LabelEncoder Successfully!
+train_mae:0.12703962703962704,train_mse:0.12937062937062938
+month 26: 310.2659090909091
+feature process use time 21.338971853256226
+特征数量为65
+LabelEncoder Successfully!
+train_mae:0.12505411255411256,train_mse:0.12667748917748917
+month 27: 427.8992424242424
+feature process use time 21.35988759994507
+特征数量为201
+LabelEncoder Successfully!
+train_mae:0.11282828282828283,train_mse:0.11454545454545455
+month 28: 444.68333333333334
+feature process use time 21.490512132644653
+
+
+单模计算结果 414.71723484848485
+504.84166666666664
+304.9318181818182
+414.8507575757576
+434.244696969697    0.59804147000
+-----------------------------  
 '''
 
