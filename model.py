@@ -110,7 +110,13 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
             dtrain = lgb.Dataset(k_x_train, k_y_train)
             dvalid = lgb.Dataset(k_x_vali, k_y_vali, reference=dtrain)
             lgb_model = lgb.LGBMRegressor(**lgb_params)
-            lgb_model = lgb_model.fit(k_x_train, k_y_train, eval_set=[(k_x_vali, k_y_vali)],
+            if 'sample_weight' in train.columns:
+                lgb_model = lgb_model.fit(k_x_train, k_y_train, eval_set=[(k_x_vali, k_y_vali)],
+                                          early_stopping_rounds=200, verbose=False, eval_metric="mae",
+                                          sample_weight=train.loc[train_index]['sample_weight'],
+                                          )
+            else:
+                lgb_model = lgb_model.fit(k_x_train, k_y_train, eval_set=[(k_x_vali, k_y_vali)],
                                       early_stopping_rounds=200, verbose=False, eval_metric="mae")
             k_pred = lgb_model.predict(k_x_vali, num_iteration=lgb_model.best_iteration_)
             pred = lgb_model.predict(test_x, num_iteration=lgb_model.best_iteration_)
@@ -134,11 +140,11 @@ def reg_model(train, test, label_name, model_type, numerical_features, category_
                 'subsample': 0.7,
                 'bootstrap_type': 'Bernoulli',
                 'boosting_type': 'Plain',
-                'one_hot_max_size': 10,
+                'one_hot_max_size': 100,
                 'rsm': 0.5,
                 'leaf_estimation_iterations': 5,
                 'use_best_model': True,
-                'max_depth': 6,
+                'max_depth': 5,
                 'verbose': -1,
                 'thread_count': 4,
                 'cat_features':category_features1+category_features2

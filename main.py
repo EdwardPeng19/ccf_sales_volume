@@ -75,6 +75,12 @@ def get_month_features(data, month):
                         'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
                 window_features.append(fea + f'window1_var_{win_size}')
                 window_features.append(fea + f'window1_mean_{win_size}')
+        window_features = []
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    ]:
+            # window_features.append(fea + f'window_var')
+            window_features.append(fea + f'window_sum')
+
         features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
                    sales_thQuarter + \
                    popularity_thMonth + popularity_model_thMonth + popularity_pro_thMonth + comment_thMonth + reply_thMonth
@@ -118,7 +124,7 @@ def get_month_features(data, month):
                 time_features2.append(fea + f'_time_{i}_{j}2')
         year_features = [f'sales_Year_var', f'sales_Year_mean', f'sales_Year_min', f'sales_Year_max',
                          'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
-                         'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
+                         'sales_pro_Year_var', 'sales_pro_Year_min', 'sales_pro_Year_mean',
                          'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
         window_features = []
         for win_size in [3]:
@@ -128,6 +134,12 @@ def get_month_features(data, month):
                         'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
                 window_features.append(fea + f'window1_var_{win_size}')
                 window_features.append(fea + f'window1_mean_{win_size}')
+        window_features = []
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    ]:
+            # window_features.append(fea + f'window_var')
+            window_features.append(fea + f'window_sum')
+
         features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + \
                    sales_thQuarter
     elif month == 3:
@@ -158,7 +170,7 @@ def get_month_features(data, month):
             sales_thQuarter.extend(tmp)
         year_features = [f'sales_Year_var', f'sales_Year_mean', f'sales_Year_min', f'sales_Year_max',
                          'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
-                         'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
+                         'sales_pro_Year_var', 'sales_pro_Year_min', 'sales_pro_Year_mean',
                          'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
 
         # 差、比值特恒
@@ -169,6 +181,13 @@ def get_month_features(data, month):
             for fea in ['sales_',]:
                 diff_features.append(fea + f'_diff_{i}_{j}')
                 time_features.append(fea + f'_time_{i}_{j}')
+
+        window_features = []
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    ]:
+            #window_features.append(fea + f'window_var')
+            window_features.append(fea + f'window_sum')
+
         features = sales_thMonth + sales_model_thMonth+sales_pro_thMonth + comment_thMonth + reply_thMonth + \
                    year_features
 
@@ -176,7 +195,7 @@ def get_month_features(data, month):
     elif month == 4:
         year_features = [f'sales_Year_var', f'sales_Year_mean', f'sales_Year_min', f'sales_Year_max',
                          'sales_model_Year_var', 'sales_model_Year_mean', 'sales_model_Year_min', 'sales_model_Year_max',
-                         'sales_pro_Year_var', 'sales_pro_Year_mean', 'sales_pro_Year_min', 'sales_pro_Year_mean',
+                         'sales_pro_Year_var', 'sales_pro_Year_min', 'sales_pro_Year_mean',
                          'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
         sales_thMonth = [f'sales_{th}thMonth' for th in range(1, 12)]
         sales_model_thMonth = [f'sales_model_mean_{th}thMonth' for th in range(month, 12)]
@@ -210,6 +229,12 @@ def get_month_features(data, month):
                 diff_features2.append(fea + f'_diff_{i}_{j}2' )
                 time_features2.append(fea + f'_time_{i}_{j}2')
         #窗口特征
+        window_features = []
+        for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                    ]:
+            #window_features.append(fea + f'window_var')
+            window_features.append(fea + f'window_sum')
+
         features = sales_thMonth + sales_model_thMonth + sales_pro_thMonth + comment_thMonth + reply_thMonth+year_features + diff_features+time_features
     else:
         print("输入月份不合法")
@@ -228,9 +253,10 @@ def get_month_features(data, month):
 def main(month, offline):
     data = pd.read_pickle(P_DATA + 'train.pk')
     data['season'] = data['regMonth'] % 4
-
-
     data['n_label'] = np.log(data['label'])
+    data['sample_weight'] = 1
+    data['sample_weight'] = data.apply(lambda x: 2 if x['province'] in ['广东','山东','江苏','河南'] else x['sample_weight'], axis=1)
+
     model_type = 'lgb'
     label = 'n_label'
     # carCommentVolum newsReplyVolum popularity
