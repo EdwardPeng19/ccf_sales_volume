@@ -23,7 +23,7 @@ def train_input():
     train_user_reply = pd.read_csv(P_DATA + 'train_user_reply_data.csv', encoding='utf-8')
     evaluation_public = pd.read_csv(P_DATA + 'evaluation_public.csv', encoding='utf-8')
     workdays_info = pd.read_csv(P_DATA + 'workdays.csv', encoding='utf-8')
-
+    train_sales_model['salesVolume'] = np.log(train_sales_model['salesVolume'])
     train_sales_model['bt_ry_mean'] = train_sales_model.groupby(['bodyType', 'regYear'])['salesVolume'].transform('mean')
     train_sales_model['ad_ry_mean'] = train_sales_model.groupby(['adcode', 'regYear'])['salesVolume'].transform('mean')
     train_sales_model['md_ry_mean'] = train_sales_model.groupby(['model', 'regYear'])['salesVolume'].transform('mean')
@@ -76,6 +76,7 @@ def feature_main(sales_path=None, offline=False):
             #print(data[data['ym'] == 21][['model_adcode_ym', 'label', 'y_hat']])
         else:
             sales_data = pd.read_csv(sales_path).rename(columns={'forecastVolum':'salesNum'})
+            sales_data['salesNum'] = np.log(sales_data['salesNum'])
             data = data.merge(sales_data, how='left', on='id')
             data['label'] = data.apply(lambda x: x['salesNum'] if x['salesNum']>0 else x['label'] , axis=1)
             #data['label'] = data['label'].map(sales_data['forecastVolum'])
@@ -107,6 +108,11 @@ def feature_main(sales_path=None, offline=False):
         data.loc[(data['regYear'].isin([2016, 2018]) & data['regMonth'].isin([2])), 'happyNY'] = 1
         data.loc[(data['regYear'].isin([2017]) & data['regMonth'].isin([1])), 'happyNY'] = 1
 
+        # data['log_label'] = np.log(data['label'])
+        # sam_weight = data[data['ym'] <= 24].groupby(['model_adcode'], as_index=False)['log_label'].agg({"sample_weight": 'mean'})
+        # sam_weight_max = sam_weight['sample_weight'].max()
+        # sam_weight['sample_weight'] = sam_weight_max - sam_weight['sample_weight']
+        # data = data.merge(sam_weight, how='left', on='model_adcode')
         # data.loc[(data['regYear'].isin([2016]) & data['regMonth'].isin([1])), 'happyNY'] = 2
         # data.loc[(data['regYear'].isin([2016]) & data['regMonth'].isin([12])), 'happyNY'] = 2
         # data.loc[(data['regYear'].isin([2018]) & data['regMonth'].isin([1])), 'happyNY'] = 2
@@ -202,14 +208,14 @@ def feature_main(sales_path=None, offline=False):
     data[f'sales_body_Year_max'] = data[[f'sales_body_mean_{i}thMonth' for i in range(1, 13)]].max(axis=1)
     #窗口和历史特征，窗口大小分别是3 4 5 6 7 12
 
-    # for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
-    #     for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
-    #                 'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
-    #                 'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
-    #                 'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
-    #         window_fea = [fea+f'{i}thMonth' for i in range(1,win_size+1)]
-    #         data[fea+f'window1_var_{win_size}'] = data[window_fea].var(axis=1)
-    #         data[fea+f'window1_sum_{win_size}'] = data[window_fea].sum(axis=1)
+    #for win_size in [2,3,4,5,6,7,8,9,10,11,12]:
+    for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
+                'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
+                'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                'sales_body_mean_', 'sales_body_var_', 'popularity_body_mean_', 'popularity_body_var_']:
+        window_fea = [fea+f'{i}thMonth' for i in [11,12,1]]
+        data[fea+f'window_var'] = data[window_fea].var(axis=1)
+        data[fea+f'window_sum'] = data[window_fea].sum(axis=1)
 
             #window_fea = [fea + f'{i}thMonth' for i in range(1, win_size)]
             #data[fea + f'window1_mean_{win_size}'] = data[window_fea].mean(axis=1)

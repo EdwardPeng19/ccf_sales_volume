@@ -102,11 +102,12 @@ def get_month_features(data, month):
             sales_thQuarter.extend([f'sales_{sea}thQuarter_var', f'sales_model_{sea}thQuarter_var',])
         # 差、比值特恒
         trend_features = []
-        for i in [11]:
+        # 差、比值特恒
+
+        trend_features = []
+        for i in [2,3, 4, 11, 12]:
             j = i + 1
             for fea in ['sales_', 'popularity_',
-                        'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
-                        'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
                         ]:
                 trend_features.append(fea + f'_diff_{i}_{j}')
                 trend_features.append(fea + f'_time_{i}_{j}')
@@ -174,13 +175,13 @@ def get_month_features(data, month):
                          'sales_body_Year_var', 'sales_body_Year_mean', 'sales_body_Year_min', 'sales_body_Year_max']
 
         # 差、比值特恒
-        diff_features = []
-        time_features = []
-        for i in [1,2]:
+        trend_features = []
+        for i in [3, 4, 5, 11, 12]:
             j = i + 1
-            for fea in ['sales_',]:
-                diff_features.append(fea + f'_diff_{i}_{j}')
-                time_features.append(fea + f'_time_{i}_{j}')
+            for fea in ['sales_', 'popularity_',
+                        ]:
+                trend_features.append(fea + f'_diff_{i}_{j}')
+                trend_features.append(fea + f'_time_{i}_{j}')
 
         window_features = []
         for fea in ['sales_', 'popularity_', 'comment_', 'reply_',
@@ -253,9 +254,9 @@ def get_month_features(data, month):
 def main(month, offline):
     data = pd.read_pickle(P_DATA + 'train.pk')
     data['season'] = data['regMonth'] % 4
-    data['n_label'] = np.log(data['label'])
+    data['n_label'] = data['label']
     data['sample_weight'] = 1
-    data['sample_weight'] = data.apply(lambda x: 2 if x['province'] in ['广东','山东','江苏','河南'] else x['sample_weight'], axis=1)
+    data['sample_weight'] = data.apply(lambda x: 2 if x['province'] in ['山东','江苏','河南','广东'] else x['sample_weight'], axis=1)
 
     model_type = 'lgb'
     label = 'n_label'
@@ -322,7 +323,7 @@ if __name__ == "__main__":
     #分别运行4次 预测1月 2月 3月 4月
 
     #预测第一个月
-    #feature_main()
+    feature_main()
     label_df1 = main(25, False)
     label_df1.to_csv(P_SUBMIT + f'ccf_car_label_lgb_1month.csv', index=False)
     #sys.exit(-1)
