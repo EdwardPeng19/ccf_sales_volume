@@ -46,8 +46,8 @@ def get_month_features(data, month):
         for i in [11]:
             j = i + 1
             for fea in ['sales_', 'popularity_',
-                        'sales_province_mean_', 'sales_province_var_', 'popularity_province_mean_', 'popularity_province_var_',
-                        'sales_model_mean_', 'sales_model_var_', 'popularity_model_mean_', 'popularity_model_var_',
+                        'sales_province_mean_', 'popularity_province_mean_',
+                        'sales_model_mean_', 'popularity_model_mean_',
                         ]:
                 trend_features.append(fea + f'_diff_{i}_{j}')
                 trend_features.append(fea + f'_time_{i}_{j}')

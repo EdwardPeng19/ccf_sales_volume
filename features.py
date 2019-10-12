@@ -24,6 +24,10 @@ def train_input():
     evaluation_public = pd.read_csv(P_DATA + 'evaluation_public.csv', encoding='utf-8')
     workdays_info = pd.read_csv(P_DATA + 'workdays.csv', encoding='utf-8')
     train_sales_model['salesVolume'] = np.log(train_sales_model['salesVolume'])
+    #train_search['popularity'] = np.log(train_search['popularity'])
+    #train_user_reply['carCommentVolum'] = np.log(train_user_reply['carCommentVolum'])
+    #train_user_reply['newsReplyVolum'] = np.log(train_user_reply['newsReplyVolum'])
+
     train_sales_model['bt_ry_mean'] = train_sales_model.groupby(['bodyType', 'regYear'])['salesVolume'].transform('mean')
     train_sales_model['ad_ry_mean'] = train_sales_model.groupby(['adcode', 'regYear'])['salesVolume'].transform('mean')
     train_sales_model['md_ry_mean'] = train_sales_model.groupby(['model', 'regYear'])['salesVolume'].transform('mean')
